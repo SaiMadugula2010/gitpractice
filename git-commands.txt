@@ -1,8 +1,11 @@
 git commands
 
 git init Initialized empty Git 
-git config --global user.name ""
+git config --global user.name "" (configuring git Repo)
 git config --global user.email ""
-git status
-git add git-commands.txt
-git commit -m "practicing git"
+git status                       (checking git repo status)
+git add git-commands.txt         (adding changes from working directory into staging area)
+git commit -m "practicing git"   (commiting changes to git local repository)
+git log                          (traccking changes to local repo)
+git show commit id               (to check the changes committed)
+
