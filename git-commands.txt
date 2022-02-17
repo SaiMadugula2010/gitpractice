@@ -1,0 +1,5 @@
+git commands
+
+git init Initialized empty Git 
+git config --global user.name ""
+git config --global user.email ""
