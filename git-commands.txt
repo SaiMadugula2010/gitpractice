@@ -11,5 +11,10 @@ git show commit id               (to check the changes committed)
 git add .                        (addigg all the files to staging area)
 git ls-files                     (tracking all the files in local repo)
 touch file name                  (creating new file)
-     
+ls -ltr                          (listing all the  files)
+git remote add origin            (linking local repo with remote repo)
+git remote -v                    (checking the link with remote repo)
+git push origin master           (pushing changes from local repo to github)
+
+ 
 
