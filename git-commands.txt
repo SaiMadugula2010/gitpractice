@@ -8,4 +8,8 @@ git add git-commands.txt         (adding changes from working directory into sta
 git commit -m "practicing git"   (commiting changes to git local repository)
 git log                          (traccking changes to local repo)
 git show commit id               (to check the changes committed)
+git add .                        (addigg all the files to staging area)
+git ls-files                     (tracking all the files in local repo)
+touch file name                  (creating new file)
+     
 
