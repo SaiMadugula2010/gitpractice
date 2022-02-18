@@ -18,7 +18,7 @@ git push origin master           (pushing changes from local repo to github)
 git branch                       (checking for active branch)
 git branch name                  (create new branch)
 git checkout branch name         (swithching between branches)
-
+git merge                        (merging changes) note: the branch can be merged from original branch
 
  
 
