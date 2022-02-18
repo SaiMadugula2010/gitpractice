@@ -20,6 +20,7 @@ git branch name                  (create new branch)
 git checkout branch name         (swithching between branches)
 git merge                        (merging changes) note: the branch can be merged from original branch
 git log --oneline                (view log in one line)
+git rebase                       (command can be used to update the base of the code from one branch to another branch for parallel development)
 
 
  
