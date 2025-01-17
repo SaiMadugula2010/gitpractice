@@ -34,6 +34,7 @@ BEGIN
     DECLARE @ExpectedDataType NVARCHAR(50);
     DECLARE @ValidValues NVARCHAR(MAX);
     DECLARE @SQL NVARCHAR(MAX);
+    DECLARE @IsValid BIT;
 
     DECLARE ColumnCursor CURSOR FOR
     SELECT ColumnName, ExpectedDataType, ValidValues
@@ -77,9 +78,9 @@ BEGIN
                     -- Validate the values if provided
                     IF @ValidValues IS NOT NULL
                     BEGIN
-                        SET @SQL = 'IF NOT EXISTS (SELECT 1 FROM ' + QUOTENAME(PARSENAME(@TableName, 2)) + '.' + QUOTENAME(PARSENAME(@TableName, 1)) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IN (' + @ValidValues + ')) SELECT 0 ELSE SELECT 1';
-                        DECLARE @IsValid BIT;
-                        EXEC sp_executesql @SQL;
+                        SET @SQL = 'IF EXISTS (SELECT 1 FROM ' + QUOTENAME(PARSENAME(@TableName, 2)) + '.' + QUOTENAME(PARSENAME(@TableName, 1)) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IN (' + @ValidValues + ')) SET @IsValid = 1 ELSE SET @IsValid = 0';
+                        SET @IsValid = 0;
+                        EXEC sp_executesql @SQL, N'@IsValid BIT OUTPUT', @IsValid OUTPUT;
 
                         IF @IsValid = 0
                         BEGIN
@@ -119,7 +120,7 @@ BEGIN
     DEALLOCATE ColumnCursor;
 
     -- Return validation results
-    SELECT * FROM #ValidationResults;
+    SELECT * FROM #ValidationResults WHERE IsValid = 0;
 
     DROP TABLE #ValidationResults;
 END;
