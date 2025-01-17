@@ -1,0 +1,135 @@
+CREATE PROCEDURE ValidateTableColumns
+    @TableName NVARCHAR(128),
+    @ColumnDetails NVARCHAR(MAX) -- JSON input containing column names, expected data types, and valid values
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Temporary table to store validation results
+    CREATE TABLE #ValidationResults (
+        ColumnName NVARCHAR(128),
+        ExpectedDataType NVARCHAR(50),
+        ProvidedValues NVARCHAR(MAX),
+        IsValid BIT,
+        ErrorMessage NVARCHAR(MAX)
+    );
+
+    -- Temporary table to parse the input JSON
+    DECLARE @ParsedColumns TABLE (
+        ColumnName NVARCHAR(128),
+        ExpectedDataType NVARCHAR(50),
+        ValidValues NVARCHAR(MAX)
+    );
+
+    -- Parse the JSON input into the temporary table
+    INSERT INTO @ParsedColumns (ColumnName, ExpectedDataType, ValidValues)
+    SELECT
+        JSON_VALUE(Value, '$.ColumnName') AS ColumnName,
+        JSON_VALUE(Value, '$.ExpectedDataType') AS ExpectedDataType,
+        JSON_VALUE(Value, '$.ValidValues') AS ValidValues
+    FROM OPENJSON(@ColumnDetails);
+
+    -- Loop through each column and validate
+    DECLARE @ColumnName NVARCHAR(128);
+    DECLARE @ExpectedDataType NVARCHAR(50);
+    DECLARE @ValidValues NVARCHAR(MAX);
+    DECLARE @SQL NVARCHAR(MAX);
+
+    DECLARE ColumnCursor CURSOR FOR
+    SELECT ColumnName, ExpectedDataType, ValidValues
+    FROM @ParsedColumns;
+
+    OPEN ColumnCursor;
+    FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ExpectedDataType, @ValidValues;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            -- Check if the column exists in the table
+            IF NOT EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = @TableName AND COLUMN_NAME = @ColumnName
+            )
+            BEGIN
+                INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+                VALUES (@ColumnName, @ExpectedDataType, @ValidValues, 0, 'Column does not exist in the table.');
+            END
+            ELSE
+            BEGIN
+                -- Check if the data type matches
+                DECLARE @ActualDataType NVARCHAR(50);
+                SELECT @ActualDataType = DATA_TYPE
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_NAME = @TableName AND COLUMN_NAME = @ColumnName;
+
+                IF @ActualDataType != @ExpectedDataType
+                BEGIN
+                    INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+                    VALUES (@ColumnName, @ExpectedDataType, @ValidValues, 0, 'Data type does not match.');
+                END
+                ELSE
+                BEGIN
+                    -- Validate the values if provided
+                    IF @ValidValues IS NOT NULL
+                    BEGIN
+                        SET @SQL = 'IF NOT EXISTS (SELECT 1 FROM ' + @TableName + ' WHERE [' + @ColumnName + '] IN (' + @ValidValues + ')) SELECT 0 ELSE SELECT 1';
+                        DECLARE @IsValid BIT;
+                        EXEC sp_executesql @SQL, N'@ValidValues NVARCHAR(MAX)', @ValidValues = @ValidValues;
+
+                        IF @IsValid = 0
+                        BEGIN
+                            INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+                            VALUES (@ColumnName, @ExpectedDataType, @ValidValues, 0, 'Not all values match valid values.');
+                        END
+                        ELSE
+                        BEGIN
+                            INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+                            VALUES (@ColumnName, @ExpectedDataType, @ValidValues, 1, NULL);
+                        END
+                    END
+                    ELSE
+                    BEGIN
+                        INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+                        VALUES (@ColumnName, @ExpectedDataType, @ValidValues, 1, NULL);
+                    END
+                END
+            END
+        END TRY
+        BEGIN CATCH
+            -- Capture error message and mark as invalid
+            INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
+            VALUES (
+                @ColumnName, 
+                @ExpectedDataType, 
+                @ValidValues, 
+                0, 
+                ERROR_MESSAGE()
+            );
+        END CATCH;
+
+        FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ExpectedDataType, @ValidValues;
+    END;
+
+    CLOSE ColumnCursor;
+    DEALLOCATE ColumnCursor;
+
+    -- Return validation results
+    SELECT * FROM #ValidationResults;
+
+    DROP TABLE #ValidationResults;
+END;
+
+
+
+DECLARE @JsonInput NVARCHAR(MAX) = 
+'[
+    { "ColumnName": "Column1", "ExpectedDataType": "INT", "ValidValues": "1,2,3" },
+    { "ColumnName": "Column2", "ExpectedDataType": "NVARCHAR(50)", "ValidValues": "\'A\',\'B\',\'C\'" },
+    ...
+    { "ColumnName": "Column20", "ExpectedDataType": "TEXT", "ValidValues": "\'Lorem\',\'Ipsum\'" }
+]';
+
+EXEC ValidateTableColumns 
+    @TableName = 'YourTableName',
+    @ColumnDetails = @JsonInput;
