@@ -49,7 +49,9 @@ BEGIN
             IF NOT EXISTS (
                 SELECT 1
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = @TableName AND COLUMN_NAME = @ColumnName
+                WHERE TABLE_SCHEMA = PARSENAME(@TableName, 2) COLLATE DATABASE_DEFAULT
+                  AND TABLE_NAME = PARSENAME(@TableName, 1) COLLATE DATABASE_DEFAULT
+                  AND COLUMN_NAME = @ColumnName COLLATE DATABASE_DEFAULT
             )
             BEGIN
                 INSERT INTO #ValidationResults (ColumnName, ExpectedDataType, ProvidedValues, IsValid, ErrorMessage)
@@ -61,7 +63,9 @@ BEGIN
                 DECLARE @ActualDataType NVARCHAR(50);
                 SELECT @ActualDataType = DATA_TYPE
                 FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_NAME = @TableName AND COLUMN_NAME = @ColumnName;
+                WHERE TABLE_SCHEMA = PARSENAME(@TableName, 2) COLLATE DATABASE_DEFAULT
+                  AND TABLE_NAME = PARSENAME(@TableName, 1) COLLATE DATABASE_DEFAULT
+                  AND COLUMN_NAME = @ColumnName COLLATE DATABASE_DEFAULT;
 
                 IF @ActualDataType != @ExpectedDataType
                 BEGIN
@@ -73,9 +77,9 @@ BEGIN
                     -- Validate the values if provided
                     IF @ValidValues IS NOT NULL
                     BEGIN
-                        SET @SQL = 'IF NOT EXISTS (SELECT 1 FROM ' + @TableName + ' WHERE [' + @ColumnName + '] IN (' + @ValidValues + ')) SELECT 0 ELSE SELECT 1';
+                        SET @SQL = 'IF NOT EXISTS (SELECT 1 FROM ' + QUOTENAME(PARSENAME(@TableName, 2)) + '.' + QUOTENAME(PARSENAME(@TableName, 1)) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IN (' + @ValidValues + ')) SELECT 0 ELSE SELECT 1';
                         DECLARE @IsValid BIT;
-                        EXEC sp_executesql @SQL, N'@ValidValues NVARCHAR(MAX)', @ValidValues = @ValidValues;
+                        EXEC sp_executesql @SQL;
 
                         IF @IsValid = 0
                         BEGIN
@@ -119,17 +123,3 @@ BEGIN
 
     DROP TABLE #ValidationResults;
 END;
-
-
-
-DECLARE @JsonInput NVARCHAR(MAX) = 
-'[
-    { "ColumnName": "Column1", "ExpectedDataType": "INT", "ValidValues": "1,2,3" },
-    { "ColumnName": "Column2", "ExpectedDataType": "NVARCHAR(50)", "ValidValues": "\'A\',\'B\',\'C\'" },
-    ...
-    { "ColumnName": "Column20", "ExpectedDataType": "TEXT", "ValidValues": "\'Lorem\',\'Ipsum\'" }
-]';
-
-EXEC ValidateTableColumns 
-    @TableName = 'YourTableName',
-    @ColumnDetails = @JsonInput;
