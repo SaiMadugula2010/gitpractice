@@ -26,5 +26,110 @@ git log --oneline                (view log in one line)
 git rebase                       (command can be used to update the base of the code from one branch to another branch for parallel development)
 
 
- 
+   
+CREATE PROCEDURE [dbo].[rule_Mandatory_Columns]  
+ @AuditId bigint  
+ , @RuleID smallint  
+ , @file_date date  
+ , @SubmitterID varchar(50)  
+ , @Pass bit OUTPUT  
+AS  
+  
+BEGIN   
+ SET NOCOUNT ON;  
+  
+ SET @Pass = 1;  
+  
+ INSERT INTO dbo.RuleAudit  
+  (   
+  [audit_id]  
+  , [rpt_id]  
+  , [rule_id]  
+  , [submitter_id]  
+  , [biz_dt]  
+  , [insert_date]  
+  , [current_fixml_value]  
+  )  
+  
+ SELECT   
+  distinct  
+  @AuditID  
+  , [report_id]  
+  , @RuleID   
+  , @SubmitterID  
+  , @file_date  
+  ,  GETDATE()  
+  , concat('The file contains records with values missing for Mandatory Columns. Missing values found in columns - ' ,  
+   coalesce(  
+    concat(  
+     case when [currency] is NULL or [currency] = '' then ' [currency] ' else '' end   
+     , case when [product_code] is NULL or [product_code] = '' then ' [product_code] ' else '' end   
+     , case when [instrument_code] is NULL or [instrument_code] = '' then ' [instrument_code] ' else '' end  
+     , case when [product_description] is NULL or [product_description] = '' then ' [product_description] ' else '' end   
+     , case when [product_type] is NULL or [product_type] = '' then ' [product_type] ' else '' end   
+     , case when [contract_date] is NULL then ' [contract_date] ' else '' end   
+     , case when [exchange_code] is NULL or [exchange_code] = '' then ' [exchange_code] ' else '' end   
+     , case when [contract_multiplier] is NULL then ' [contract_multiplier] ' else '' end   
+     , case when [uic] is NULL or [uic] = '' then ' [uic] ' else '' end   
+     , case when [uic_order_book]  is NULL or [uic_order_book]  = '' then ' [uic_order_book]  ' else '' end   
+     , case when [cfi_code] is NULL or [cfi_code] = '' then ' [cfi_code] ' else '' end   
+     , case when [clearing_business_date] is NULL then ' [clearing_business_date] ' else '' end   
+     , case when [last_trading_date] is NULL then ' [last_trading_date] ' else '' end   
+     , case when [negative_price_eligibility] is NULL or [negative_price_eligibility] = '' then ' [negative_price_eligibility] ' else '' end   
+     , case when [report_id] is NULL or [report_id] = '' then ' [report_id] ' else '' end   
+     , case when [status] is NULL or [status] = '' then ' [status] ' else '' end   
+     , case when [unit_of_measure] is NULL or [unit_of_measure] = '' then ' [unit_of_measure] ' else '' end   
+     , case when [match_algo] is NULL or [match_algo] = '' then ' [match_algo] ' else '' end   
+     , case when [unit_of_measure_quantity] is NULL then ' [unit_of_measure_quantity] ' else '' end   
+     , case when [settlement_method] is NULL or [settlement_method] = '' then ' [settlement_method] ' else '' end   
+     , case when [tick_increment] is NULL then ' [tick_increment] ' else '' end   
+     , case when [flexible_product_eligibility_ind] is NULL or [flexible_product_eligibility_ind] = '' then ' [flexible_product_eligibility_ind] ' else '' end   
+     , case when [flex_indicator] is NULL or [flex_indicator] = '' then ' [flex_indicator] ' else '' end   
+     , case when [settlement_determination_method] is NULL or [settlement_determination_method] = '' then ' [settlement_determination_method] ' else '' end   
+     , case when [position_limit_linked_product] is NULL or [position_limit_linked_product] = '' then ' [position_limit_linked_product] ' else '' end   
+     , case when [filac_official_product_name] is NULL or [filac_official_product_name] = '' then ' [filac_official_product_name] ' else '' end   
+     , case when [minimum_tick_value] is NULL  then ' [minimum_tick_value] ' else '' end   
+     , case when [uic_type] is NULL or [uic_type] = '' then ' [uic_type] ' else '' end   
+    )  
+   , '')  
+   )  
+   FROM dbo.product_reference_def_stg with (nolock)  
+   where  
+  [audit_id] = @AuditID  
+  and (  
+   [currency]  is NULL or  [currency]  = ''   
+   or [product_code]  is NULL or  [product_code]  = ''   
+   or [instrument_code]  is NULL or  [instrument_code]  = ''   
+   or [product_description]  is NULL or  [product_description]  = ''   
+   or [product_type] is NULL or  [product_type]  = ''   
+   or [contract_date]  is NULL -----Date  
+   or [exchange_code]  is NULL or  [exchange_code]  = ''   
+   or [contract_multiplier]  is NULL -----Decimal  
+   or [uic]  is NULL or  [uic]  = ''   
+   or [uic_order_book]    is NULL or  [uic_order_book]    = ''   
+   or [cfi_code]  is NULL or  [cfi_code]  = ''   
+   or [clearing_business_date]  is NULL -----Date   
+   or [last_trading_date]  is NULL -----Date  
+   or [negative_price_eligibility]  is NULL or  [negative_price_eligibility]  = ''   
+   or [report_id]  is NULL or  [report_id]  = ''   
+   or [status]  is NULL or  [status]  = ''   
+   or [unit_of_measure]  is NULL or  [unit_of_measure]  = ''   
+   or [match_algo]  is NULL or  [match_algo]  = ''   
+   or [unit_of_measure_quantity]  is NULL -----Decimal  
+   or [settlement_method]  is NULL or  [settlement_method]  = ''   
+   or [tick_increment]  is NULL -----Decimal  
+   or [flexible_product_eligibility_ind]  is NULL or  [flexible_product_eligibility_ind]  = ''   
+   or [flex_indicator]  is NULL or  [flex_indicator]  = ''   
+   or [settlement_determination_method]  is NULL or  [settlement_determination_method]  = ''   
+   or [position_limit_linked_product]  is NULL or  [position_limit_linked_product]  = ''   
+   or [filac_official_product_name]  is NULL or  [filac_official_product_name]  = ''   
+   or [minimum_tick_value]  is NULL -----Decimal  
+   or [uic_type]  is NULL or  [uic_type]  = ''   
+   )  
+  
+IF @@ROWCOUNT > 0  
+SET @Pass = 0  
+  
+END  
+  
 
