@@ -131,5 +131,105 @@ IF @@ROWCOUNT > 0
 SET @Pass = 0  
   
 END  
+
+
+
+
+
+*****************************
+
+CREATE PROCEDURE ValidateTableColumns
+    @AuditId BIGINT,
+    @RuleID SMALLINT,
+    @file_date DATE,
+    @SubmitterID VARCHAR(50),
+    @Pass BIT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Initialize the Pass flag to 1 (assume validation passes initially)
+    SET @Pass = 1;
+
+    -- Insert mismatched records into a log table (similar to RuleAudit)
+    INSERT INTO dbo.RuleAudit
+        (
+            [audit_id],
+            [rpt_id],
+            [rule_id],
+            [submitter_id],
+            [biz_dt],
+            [insert_date],
+            [current_fixml_value]
+        )
+    SELECT DISTINCT
+        @AuditId,
+        [report_id],
+        @RuleID,
+        @SubmitterID,
+        @file_date,
+        GETDATE(),
+        CONCAT(
+            'The table contains records with invalid values for the specified columns. Invalid values found in columns - ',
+            COALESCE(
+                CONCAT(
+                    CASE WHEN [option_type] NOT IN (0, 1) THEN ' [option_type] ' ELSE '' END,
+                    CASE WHEN [settlement_instr_product_type] NOT IN ('FUT', 'OOF', 'OOC', 'CMDTYSWAP', 'MLEG') THEN ' [settlement_instr_product_type] ' ELSE '' END,
+                    CASE WHEN [product_type] NOT IN ('FUT', 'OOF', 'OOC', 'CMDTYSWAP', 'MLEG') THEN ' [product_type] ' ELSE '' END,
+                    CASE WHEN [settlement_put_call_indicator] NOT IN (0, 1) THEN ' [settlement_put_call_indicator] ' ELSE '' END,
+                    CASE WHEN [negative_price_eligibility] NOT IN ('Y', 'N') THEN ' [negative_price_eligibility] ' ELSE '' END,
+                    CASE WHEN [status] NOT IN (1, 5, 6) THEN ' [status] ' ELSE '' END,
+                    CASE WHEN [assignment_method] NOT IN ('P', 'R') THEN ' [assignment_method] ' ELSE '' END,
+                    CASE WHEN [match_algo] NOT IN (101, 102, 103, 104, 105) THEN ' [match_algo] ' ELSE '' END,
+                    CASE WHEN [settlement_method] NOT IN ('C', 'P') THEN ' [settlement_method] ' ELSE '' END,
+                    CASE WHEN [option_expiration_type] NOT IN (0, 1, 2, 99) THEN ' [option_expiration_type] ' ELSE '' END,
+                    CASE WHEN [list_method] NOT IN (0, 1) THEN ' [list_method] ' ELSE '' END,
+                    CASE WHEN [flexible_product_eligibility_ind] NOT IN ('Y', 'N') THEN ' [flexible_product_eligibility_ind] ' ELSE '' END,
+                    CASE WHEN [flex_indicator] NOT IN ('Y', 'N') THEN ' [flex_indicator] ' ELSE '' END,
+                    CASE WHEN [flow_schedule_type] NOT IN (5, 6, 7, 99) THEN ' [flow_schedule_type] ' ELSE '' END,
+                    CASE WHEN [settlement_determination_method] NOT IN (1, 2, 5) THEN ' [settlement_determination_method] ' ELSE '' END,
+                    CASE WHEN [option_payout_type] NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 99) THEN ' [option_payout_type] ' ELSE '' END,
+                    CASE WHEN [contrary_instructions_allowed] NOT IN ('Y', 'N') THEN ' [contrary_instructions_allowed] ' ELSE '' END,
+                    CASE WHEN [currency_inversion] NOT IN (20, 21) THEN ' [currency_inversion] ' ELSE '' END,
+                    CASE WHEN [settlement_calculation_method] NOT IN ('VWAP', 'TWAP', 'MBO', 'LTTD', 'BBID', 'BOFR', 'SPRD', 'OTHR') THEN ' [settlement_calculation_method] ' ELSE '' END,
+                    CASE WHEN [spot_period] NOT IN ('Y', 'N') THEN ' [spot_period] ' ELSE '' END,
+                    CASE WHEN [active_month] NOT IN ('Y', 'N') THEN ' [active_month] ' ELSE '' END,
+                    CASE WHEN [uic_type] NOT IN (1, 2) THEN ' [uic_type] ' ELSE '' END
+                ),
+                ''
+            )
+        )
+    FROM dbo.TableName -- Replace with the actual table name
+    WHERE
+        -- Conditions for invalid values in the table
+        [option_type] NOT IN (0, 1)
+        OR [settlement_instr_product_type] NOT IN ('FUT', 'OOF', 'OOC', 'CMDTYSWAP', 'MLEG')
+        OR [product_type] NOT IN ('FUT', 'OOF', 'OOC', 'CMDTYSWAP', 'MLEG')
+        OR [settlement_put_call_indicator] NOT IN (0, 1)
+        OR [negative_price_eligibility] NOT IN ('Y', 'N')
+        OR [status] NOT IN (1, 5, 6)
+        OR [assignment_method] NOT IN ('P', 'R')
+        OR [match_algo] NOT IN (101, 102, 103, 104, 105)
+        OR [settlement_method] NOT IN ('C', 'P')
+        OR [option_expiration_type] NOT IN (0, 1, 2, 99)
+        OR [list_method] NOT IN (0, 1)
+        OR [flexible_product_eligibility_ind] NOT IN ('Y', 'N')
+        OR [flex_indicator] NOT IN ('Y', 'N')
+        OR [flow_schedule_type] NOT IN (5, 6, 7, 99)
+        OR [settlement_determination_method] NOT IN (1, 2, 5)
+        OR [option_payout_type] NOT IN (1, 2, 3, 4, 5, 6, 7, 8, 99)
+        OR [contrary_instructions_allowed] NOT IN ('Y', 'N')
+        OR [currency_inversion] NOT IN (20, 21)
+        OR [settlement_calculation_method] NOT IN ('VWAP', 'TWAP', 'MBO', 'LTTD', 'BBID', 'BOFR', 'SPRD', 'OTHR')
+        OR [spot_period] NOT IN ('Y', 'N')
+        OR [active_month] NOT IN ('Y', 'N')
+        OR [uic_type] NOT IN (1, 2);
+
+    -- Check if any rows were inserted (indicating validation failures)
+    IF @@ROWCOUNT > 0
+        SET @Pass = 0;
+
+END;
+
   
 
