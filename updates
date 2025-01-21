@@ -1,0 +1,141 @@
+CREATE PROCEDURE ValidateTableColumns
+    @TableName NVARCHAR(128),
+    @ColumnDetails NVARCHAR(MAX) -- JSON input containing column names and valid values
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Temporary table to store validation results
+    CREATE TABLE #ValidationResults (
+        ColumnName NVARCHAR(128),
+        ProvidedValues NVARCHAR(MAX),
+        IsValid BIT,
+        ErrorMessage NVARCHAR(MAX)
+    );
+
+    -- Temporary table to parse the input JSON
+    DECLARE @ParsedColumns TABLE (
+        ColumnName NVARCHAR(128),
+        ValidValues NVARCHAR(MAX)
+    );
+
+    -- Parse the JSON input into the temporary table
+    INSERT INTO @ParsedColumns (ColumnName, ValidValues)
+    SELECT
+        JSON_VALUE(Value, '$.ColumnName') AS ColumnName,
+        JSON_VALUE(Value, '$.ValidValues') AS ValidValues
+    FROM OPENJSON(@ColumnDetails);
+
+    -- Loop through each column and validate
+    DECLARE @ColumnName NVARCHAR(128);
+    DECLARE @ValidValues NVARCHAR(MAX);
+    DECLARE @SQL NVARCHAR(MAX);
+    DECLARE @IsValid BIT;
+
+    DECLARE ColumnCursor CURSOR FOR
+    SELECT ColumnName, ValidValues
+    FROM @ParsedColumns;
+
+    OPEN ColumnCursor;
+    FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ValidValues;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            -- Check if the column exists in the table
+            IF NOT EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = PARSENAME(@TableName, 2) COLLATE DATABASE_DEFAULT
+                  AND TABLE_NAME = PARSENAME(@TableName, 1) COLLATE DATABASE_DEFAULT
+                  AND COLUMN_NAME = @ColumnName COLLATE DATABASE_DEFAULT
+            )
+            BEGIN
+                INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                VALUES (@ColumnName, @ValidValues, 0, 'Column does not exist in the table.');
+            END
+            ELSE
+            BEGIN
+                -- Validate the values if provided
+                IF @ValidValues IS NOT NULL
+                BEGIN
+                    SET @SQL = 'IF EXISTS (SELECT 1 FROM ' + QUOTENAME(PARSENAME(@TableName, 2)) + '.' + QUOTENAME(PARSENAME(@TableName, 1)) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IN (' + @ValidValues + ')) SET @IsValid = 1 ELSE SET @IsValid = 0';
+                    SET @IsValid = 0;
+                    EXEC sp_executesql @SQL, N'@IsValid BIT OUTPUT', @IsValid OUTPUT;
+
+                    IF @IsValid = 0
+                    BEGIN
+                        INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                        VALUES (@ColumnName, @ValidValues, 0, 'Not all values match valid values.');
+                    END
+                    ELSE
+                    BEGIN
+                        INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                        VALUES (@ColumnName, @ValidValues, 1, NULL);
+                    END
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                    VALUES (@ColumnName, @ValidValues, 1, NULL);
+                END
+            END
+        END TRY
+        BEGIN CATCH
+            -- Capture error message and mark as invalid
+            INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+            VALUES (
+                @ColumnName, 
+                @ValidValues, 
+                0, 
+                ERROR_MESSAGE()
+            );
+        END CATCH;
+
+        FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ValidValues;
+    END;
+
+    CLOSE ColumnCursor;
+    DEALLOCATE ColumnCursor;
+
+    -- Return validation results
+    SELECT * FROM #ValidationResults WHERE IsValid = 0;
+
+    DROP TABLE #ValidationResults;
+END;
+
+
+
+
+
+
+DECLARE @JsonInput NVARCHAR(MAX) = 
+'[
+    { "ColumnName": "option_type", "ValidValues": "0,1" },
+    { "ColumnName": "settlement_instr_product_type", "ValidValues": "'FUT','OOF','OOC','CMDTYSWAP','MLEG'" },
+    { "ColumnName": "product_type", "ValidValues": "'FUT','OOF','OOC','CMDTYSWAP','MLEG'" },
+    { "ColumnName": "settlement_put_call_indicator", "ValidValues": "0,1" },
+    { "ColumnName": "negative_price_eligibility", "ValidValues": "'Y','N'" },
+    { "ColumnName": "status", "ValidValues": "1,5,6" },
+    { "ColumnName": "assignment_method", "ValidValues": "'P','R'" },
+    { "ColumnName": "match_algo", "ValidValues": "101,102,103,104,105" },
+    { "ColumnName": "settlement_method", "ValidValues": "'C','P'" },
+    { "ColumnName": "option_expiration_type", "ValidValues": "0,1,2,99" },
+    { "ColumnName": "list_method", "ValidValues": "0,1" },
+    { "ColumnName": "flexible_product_eligibility_ind", "ValidValues": "'Y','N'" },
+    { "ColumnName": "flex_indicator", "ValidValues": "'Y','N'" },
+    { "ColumnName": "flow_schedule_type", "ValidValues": "5,6,7,99" },
+    { "ColumnName": "settlement_determination_method", "ValidValues": "1,2,5" },
+    { "ColumnName": "option_payout_type", "ValidValues": "1,2,3,4,5,6,7,8,99" },
+    { "ColumnName": "contrary_instructions_allowed", "ValidValues": "'Y','N'" },
+    { "ColumnName": "currency_inversion", "ValidValues": "20,21" },
+    { "ColumnName": "settlement_calculation_method", "ValidValues": "'VWAP','TWAP','MBO','LTTD','BBID','BOFR','SPRD','OTHR'" },
+    { "ColumnName": "spot_period", "ValidValues": "'Y','N'" },
+    { "ColumnName": "active_month", "ValidValues": "'Y','N'" },
+    { "ColumnName": "uic_type", "ValidValues": "1,2" }
+]';
+
+
+EXEC ValidateTableColumns 
+    @TableName = 'dbo.RuleAudit',
+    @ColumnDetails = @JsonInput;
