@@ -1,0 +1,125 @@
+--Procedure with all the values hard coded
+
+CREATE PROCEDURE ValidateTableColumns3
+    @TableName NVARCHAR(128) -- Table name to validate
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Temporary table to store validation results
+    CREATE TABLE #ValidationResults (
+        ColumnName NVARCHAR(128),
+        ProvidedValues NVARCHAR(MAX),
+        IsValid BIT,
+        ErrorMessage NVARCHAR(MAX)
+    );
+
+    -- Temporary table to store hard-coded validation rules
+    DECLARE @ParsedColumns TABLE (
+        ColumnName NVARCHAR(128),
+        ValidValues NVARCHAR(MAX)
+    );
+
+    -- Insert hard-coded column names and valid values
+    INSERT INTO @ParsedColumns (ColumnName, ValidValues)
+    VALUES
+        ('option_type', '0,1'),
+        ('settlement_instr_product_type', '''FUT'',''OOF'',''OOC'',''CMDTYSWAP'',''MLEG'''),
+        ('product_type', '''FUT'',''OOF'',''OOC'',''CMDTYSWAP'',''MLEG'''),
+        ('settlement_put_call_indicator', '0,1'),
+        ('negative_price_eligibility', '''Y'',''N'''),
+        ('status', '1,5,6'),
+        ('assignment_method', '''P'',''R'''),
+        ('match_algo', '101,102,103,104,105'),
+        ('settlement_method', '''C'',''P'''),
+        ('option_expiration_type', '0,1,2,99'),
+        ('list_method', '0,1'),
+        ('flexible_product_eligibility_ind', '''Y'',''N'''),
+        ('flex_indicator', '''Y'',''N'''),
+        ('flow_schedule_type', '5,6,7,99'),
+        ('settlement_determination_method', '1,2,5'),
+        ('option_payout_type', '1,2,3,4,5,6,7,8,99'),
+        ('contrary_instructions_allowed', '''Y'',''N'''),
+        ('currency_inversion', '20,21'),
+        ('settlement_calculation_method', '''VWAP'',''TWAP'',''MBO'',''LTTD'',''BBID'',''BOFR'',''SPRD'',''OTHR'''),
+        ('spot_period', '''Y'',''N'''),
+        ('active_month', '''Y'',''N'''),
+        ('uic_type', '1,2');
+
+    -- Loop through each column and validate
+    DECLARE @ColumnName NVARCHAR(128);
+    DECLARE @ValidValues NVARCHAR(MAX);
+    DECLARE @SQL NVARCHAR(MAX);
+    DECLARE @IsValid BIT;
+
+    DECLARE ColumnCursor CURSOR FOR
+    SELECT ColumnName, ValidValues
+    FROM @ParsedColumns;
+
+    OPEN ColumnCursor;
+    FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ValidValues;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            -- Check if the column exists in the table
+            IF NOT EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = PARSENAME(@TableName, 2) COLLATE DATABASE_DEFAULT
+                  AND TABLE_NAME = PARSENAME(@TableName, 1) COLLATE DATABASE_DEFAULT
+                  AND COLUMN_NAME = @ColumnName COLLATE DATABASE_DEFAULT
+            )
+            BEGIN
+                INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                VALUES (@ColumnName, @ValidValues, 0, 'Column does not exist in the table.');
+            END
+            ELSE
+            BEGIN
+                -- Validate the values if provided
+                IF @ValidValues IS NOT NULL
+                BEGIN
+                    SET @SQL = 'IF EXISTS (SELECT 1 FROM ' + QUOTENAME(PARSENAME(@TableName, 2)) + '.' + QUOTENAME(PARSENAME(@TableName, 1)) + ' WHERE ' + QUOTENAME(@ColumnName) + ' IN (' + @ValidValues + ')) SET @IsValid = 1 ELSE SET @IsValid = 0';
+                    SET @IsValid = 0;
+                    EXEC sp_executesql @SQL, N'@IsValid BIT OUTPUT', @IsValid OUTPUT;
+
+                    IF @IsValid = 0
+                    BEGIN
+                        INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                        VALUES (@ColumnName, @ValidValues, 0, 'Not all values match valid values.');
+                    END
+                    ELSE
+                    BEGIN
+                        INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                        VALUES (@ColumnName, @ValidValues, 1, NULL);
+                    END
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+                    VALUES (@ColumnName, @ValidValues, 1, NULL);
+                END
+            END
+        END TRY
+        BEGIN CATCH
+            -- Capture error message and mark as invalid
+            INSERT INTO #ValidationResults (ColumnName, ProvidedValues, IsValid, ErrorMessage)
+            VALUES (
+                @ColumnName, 
+                @ValidValues, 
+                0, 
+                ERROR_MESSAGE()
+            );
+        END CATCH;
+
+        FETCH NEXT FROM ColumnCursor INTO @ColumnName, @ValidValues;
+    END;
+
+    CLOSE ColumnCursor;
+    DEALLOCATE ColumnCursor;
+
+    -- Return validation results
+    SELECT * FROM #ValidationResults WHERE IsValid = 0;
+
+    DROP TABLE #ValidationResults;
+END;
