@@ -1,0 +1,524 @@
+{
+  "application_name": {
+    "S": "mfdc_sdros_loader"
+  },
+  "batch": {
+    "M": {
+      "job_definition": {
+        "S": "arn:aws:batch:us-east-1:844685140037:job-definition/mfdc_sdros_etl_convert_zip_to_gz"
+      },
+      "job_queue": {
+        "S": "arn:aws:batch:us-east-1:844685140037:job-queue/cftc-obod-etl-unzip-job-queue"
+      }
+    }
+  },
+  "bucket_info": {
+    "M": {
+      "archive_bucket": {
+        "S": "dev-archive-obod-cftc-gov"
+      },
+      "archive_key_prefix": {
+        "S": "sdros/"
+      },
+      "staging_bucket": {
+        "S": "dev-staging-obod-cftc-gov"
+      },
+      "staging_key_prefix": {
+        "S": "sdros/"
+      }
+    }
+  },
+  "filename_table_map": {
+    "M": {
+      "sdros_co": {
+        "S": "os_co"
+      },
+      "sdros_cr": {
+        "S": "os_cr"
+      },
+      "sdros_eq": {
+        "S": "os_eq"
+      },
+      "sdros_fx": {
+        "S": "os_fx"
+      },
+      "sdros_ir": {
+        "S": "os_ir"
+      }
+    }
+  },
+  "file_name_regex": {
+    "S": ".?SDROS_(?P<asset_class>[^_]*)_(?P<sdr_id>[^_]*)_(?P<file_dt>[0-9]{8})"
+  },
+  "header_buffer": {
+    "S": "3000"
+  },
+  "lambda_functions": {
+    "M": {
+      "build_sns_msg": {
+        "S": "mfdc_build_sns_notification_parameters"
+      },
+      "convert_to_json": {
+        "S": "obod_etl_convert_json_string"
+      },
+      "create_redshift_queries": {
+        "S": "mfdc_sdros_create_redshift_queries"
+      },
+      "execute_rs_command": {
+        "S": "mfdc_rs_data_api_wrapper"
+      },
+      "file_audit": {
+        "S": "mfdc_file_audit"
+      },
+      "rec_check_lambda": {
+        "S": "mfdc_rs_data_api_wrapper_synchro"
+      },
+      "send_task_result": {
+        "S": "obod_etl_send_task_result"
+      }
+    }
+  },
+  "log": {
+    "M": {
+      "cloud_watch_log_group": {
+        "S": "/cftc/sdros/etl"
+      },
+      "log_level": {
+        "S": "DEBUG"
+      }
+    }
+  },
+  "notifications": {
+    "M": {
+      "failure": {
+        "M": {
+          "body": {
+            "S": "Data load of sdros CSV file - {file_name} - into Redshift failed. The error message is - {errors}"
+          },
+          "subject": {
+            "S": "(DEV) Data load of sdros CSV file into Redshift failed."
+          }
+        }
+      },
+      "notification_arn": {
+        "S": "arn:aws:sns:us-east-1:844685140037:cftc_mfdc_sdr_os_topic"
+      },
+      "success": {
+        "M": {
+          "body": {
+            "S": "Data load of sdros CSV file - {file_name} - into Redshift completed successfully."
+          },
+          "subject": {
+            "S": "(DEV) Data load of sdros CSV file into Redshift completed successfully."
+          }
+        }
+      }
+    }
+  },
+  "redshift_parameters": {
+    "M": {
+      "access_role": {
+        "S": "aws_iam_role=arn:aws:iam::844685140037:role/CFTC_OBOD_DW_Access_Role"
+      },
+      "audit_table": {
+        "S": "file_audit"
+      },
+      "cftc_record_key_command": {
+        "S": "BEGIN; update {redshift_schema}.{table_name} set cftc_record_key=MD5(UPPER(nvl(TRIM(usi), '') || nvl(TRIM(exects), '') || nvl(TRIM(expdt), '') || nvl(TRIM(cp1), '') || nvl(TRIM(cp2) , '') || nvl(TRIM(uti) , ''))) where auditid like '{file_id}' ; END ;"
+      },
+      "cluster_identifier": {
+        "S": "redshift-cluster-1"
+      },
+      "column_names": {
+        "S": "recordId, auditId, fileGroupId, fileDt, sdrId, cld,cntrlCp,clrAcctOr,clrMbr,clrSwapUsis,clrSwapUtis,origSwapUsi,origSwapUti,origSwapSdrId,clrRcptTs,clrExcExemptCp1,clrExcExemptCp2,cp1,cp2,cp2IdSrc,cp1FinEntInd,cp2FinEntInd,buyerId,sellerId,pyrIdLeg1,pyrIdLeg2,recrIdLeg1,recrIdLeg2,cp1FedEntInd,cp2FedEntInd,custBskInd,actnTyp,evtTyp,amdInd,evtId,evtTs,notlAmtLeg1,notlAmtLeg2,notlCcyLeg1,notlCcyLeg2,notlAmtEfctAssoEffDtLeg1,notlAmtEfctAssoEffDtLeg2,effDtNotlAmtLeg1,effDtNotlAmtLeg2,endDtNotlAmtLeg1,endDtNotlAmtLeg2,callAmtLeg1,callAmtLeg2,callCcyLeg1,callCcyLeg2,putAmtLeg1,putAmtLeg2,putCcyLeg1,putCcyLeg2,notlQtyLeg1,notlQtyLeg2,qtyFreqLeg1,qtyFreqLeg2,qtyFreqMultLeg1,qtyFreqMultLeg2,qtyUomLeg1,qtyUomLeg2,totNotlQtyLeg1,totNotlQtyLeg2,pckgInd,pckgId,pckgTransPx,pckgTransPxCcy,pckgTransPxNot,pckgTransSprd,pckgTransSprdCcy,pckgTransSprdNot,fxdRtDayCntConvLeg1,fxdRtDayCntConvLeg2,fltRtRstFreqConvLeg1,fltRtRstFreqConvLeg2,fixDtLeg1,fixDtLeg2,fltRtRstFreqPrdLeg1,fltRtRstFreqPrdLeg2,fltRtRstFreqPrdMultLeg1,fltRtRstFreqPrdMultLeg2,othPmtTyp,othPmtAmt,othPmtCcy,othPmtDt,othPmtPyr,othPmtRecr,fxdRtPmtFreqPrdLeg1,fxdRtPmtFreqPrdLeg2,fltRtPmtFreqPrdLeg1,fltRtPmtFreqPrdLeg2,fxdRtPmtFreqPrdMultLeg1,fxdRtPmtFreqPrdMultLeg2,fltRtPmtFreqPrdMultLeg1,fltRtPmtFreqPrdMultLeg2,exchRt,exchRtBasis,fxdRtLeg1,fxdRtLeg2,postPxSwapInd,px,pxCcy,pxNot,pxUom,sprdLeg1,sprdLeg2,sprdCcyLeg1,sprdCcyLeg2,sprdNotLeg1,sprdNotLeg2,strkPx,strkPxCcyOrCcyPr,strkPxNot,optPremAmt,optPremCcy,optPremPmtDt,fstExerDt,cdsIdxAtchPt,cdsIdxDetPt,idxFactr,embOptTyp,fnlContrStlmtDt,stlmtCcyLeg1,stlmtCcyLeg2,stlmtLocLeg1,stlmtLocLeg2,allocInd,nonStdTrmInd,blkTrdElectInd,effDt,expDt,execTs,pltfId,prmBrkgTransInd,priorUsi,priorUti,usi,uti,jdx,nextFltRefRstDtLeg1,nextFltRefRstDtLeg2,lastFltRefValLeg1,lastFltRefValLeg2,lastFltRefRstDtLeg1,lastFltRefRstDtLeg2,\"delta\",valuAmt,valuCcy,valuMthd,valuTs,initMarCollatPortCd,varMarCollatPortCd,astCl,ccyAssocdUndlyIdxLeg1,ccyAssocdUndlyIdxLeg2,dlvrTyp,instrTyp,notlSchedTypLeg1,notlSchedTypLeg2,optSty,optTyp,rtnPxMthdOrPyotTrg,snr,sglMultCcy,stdCntrctSpec,undlrIdLeg1,undlrIdLeg2,undlrIdSrcLeg1,undlrIdSrcLeg2,undlyAstOrUndlyCntrctTypLeg1,undlyAstOrUndlyCntrctTypLeg2,undlyAstCntrctSubtypLeg1,undlyAstCntrctSubtypLeg2,undlyCridxSer,undlyCridxVer,undlyRtIdxTnrPrdLeg1,undlyRtIdxTnrPrdLeg2,undlyRtIdxTnrPrdMultLeg1,undlyRtIdxTnrPrdMultLeg2,prodNm,prodCd,prodCdTyp,optExerFreqPrd,optExerFreqPrdMult,optExerEndDt,physCommCntrctInd,physDelvrRgnLeg1,physDelvrRgnLeg2,pxIdxRgnLeg1,pxIdxRgnLeg2,physDelvrLocLeg1,physDelvrLocLeg2,pxIdxLocLeg1,pxIdxLocLeg2,commSwapCat,othCommSwapCat,prodGrd,trdTyp,matDtUndlr,undlyAstNm,commDescLeg1,commDescLeg2,undlrIdPx,othUndlrIdPx,futValNotl,fxFixSrc,numOfAccrDays,secAstCl,lrgNotlOffFacSwapInd,sefOrDcmInd,sefOrDcmAnonExecInd,manClrInd,sdMspIndCp1,sdMspIndCp2,rptDt"
+      },
+      "column_names_2_4": {
+        "S": "recordId,auditId,fileGroupId,fileDt,sdrId,cld,cntrlCp,clrAcctOr,clrMbr,clrSwapUsis,clrSwapUtis,origSwapUsi,origSwapUti,origSwapSdrId,clrRcptTs,clrExcExemptCp1,clrExcExemptCp2,cp1,cp2,cp2IdSrc,cp1FinEntInd,cp2FinEntInd,buyerId,sellerId,pyrIdLeg1,pyrIdLeg2,recrIdLeg1,recrIdLeg2,cp1FedEntInd,cp2FedEntInd,custBskInd,actnTyp,evtTyp,amdInd,evtId,evtTs,notlAmtLeg1,notlAmtLeg2,notlCcyLeg1,notlCcyLeg2,notlAmtEfctAssoEffDtLeg1,notlAmtEfctAssoEffDtLeg2,effDtNotlAmtLeg1,effDtNotlAmtLeg2,endDtNotlAmtLeg1,endDtNotlAmtLeg2,callAmtLeg1,callAmtLeg2,callCcyLeg1,callCcyLeg2,putAmtLeg1,putAmtLeg2,putCcyLeg1,putCcyLeg2,notlQtyLeg1,notlQtyLeg2,qtyFreqLeg1,qtyFreqLeg2,qtyFreqMultLeg1,qtyFreqMultLeg2,qtyUomLeg1,qtyUomLeg2,totNotlQtyLeg1,totNotlQtyLeg2,pckgInd,pckgId,pckgTransPx,pckgTransPxCcy,pckgTransPxNot,pckgTransSprd,pckgTransSprdCcy,pckgTransSprdNot,fxdRtDayCntConvLeg1,fxdRtDayCntConvLeg2,fltrtdaycntconvleg1,fltrtdaycntconvleg2,fixDtLeg1,fixDtLeg2,fltRtRstFreqPrdLeg1,fltRtRstFreqPrdLeg2,fltRtRstFreqPrdMultLeg1,fltRtRstFreqPrdMultLeg2,othPmtTyp,othPmtAmt,othPmtCcy,othPmtDt,othPmtPyr,othPmtRecr,fxdRtPmtFreqPrdLeg1,fxdRtPmtFreqPrdLeg2,fltRtPmtFreqPrdLeg1,fltRtPmtFreqPrdLeg2,fxdRtPmtFreqPrdMultLeg1,fxdRtPmtFreqPrdMultLeg2,fltRtPmtFreqPrdMultLeg1,fltRtPmtFreqPrdMultLeg2,exchRt,exchRtBasis,fxdRtLeg1,fxdRtLeg2,postPxSwapInd,px,pxCcy,pxNot,pxUom,sprdLeg1,sprdLeg2,sprdCcyLeg1,sprdCcyLeg2,sprdNotLeg1,sprdNotLeg2,strkPx,strkPxCcyOrCcyPr,strkPxNot,optPremAmt,optPremCcy,optPremPmtDt,fstExerDt,cdsIdxAtchPt,cdsIdxDetPt,idxFactr,embOptTyp,fnlContrStlmtDt,stlmtCcyLeg1,stlmtCcyLeg2,stlmtLocLeg1,stlmtLocLeg2,allocInd,nonStdTrmInd,blkTrdElectInd,effDt,expDt,execTs,pltfId,prmBrkgTransInd,priorUsi,priorUti,usi,uti,jdx,nextFltRefRstDtLeg1,nextFltRefRstDtLeg2,lastFltRefValLeg1,lastFltRefValLeg2,lastFltRefRstDtLeg1,lastFltRefRstDtLeg2,\"delta\",valuAmt,valuCcy,valuMthd,valuTs,initMarCollatPortCd,varMarCollatPortCd,astCl,ccyAssocdUndlyIdxLeg1,ccyAssocdUndlyIdxLeg2,dlvrTyp,instrTyp,notlSchedTypLeg1,notlSchedTypLeg2,optSty,optTyp,rtnPxMthdOrPyotTrg,snr,sglMultCcy,stdCntrctSpec,undlrIdLeg1,undlrIdLeg2,undlrIdSrcLeg1,undlrIdSrcLeg2,undlyAstOrUndlyCntrctTypLeg1,undlyAstOrUndlyCntrctTypLeg2,undlyAstCntrctSubtypLeg1,undlyAstCntrctSubtypLeg2,undlyCridxSer,undlyCridxVer,undlyRtIdxTnrPrdLeg1,undlyRtIdxTnrPrdLeg2,undlyRtIdxTnrPrdMultLeg1,undlyRtIdxTnrPrdMultLeg2,prodNm,prodCd,prodCdTyp,optExerFreqPrd,optExerFreqPrdMult,optExerEndDt,physCommCntrctInd,physDelvrRgnLeg1,physDelvrRgnLeg2,pxIdxRgnLeg1,pxIdxRgnLeg2,physDelvrLocLeg1,physDelvrLocLeg2,pxIdxLocLeg1,pxIdxLocLeg2,commSwapCat,othCommSwapCat,prodGrd,trdTyp,matDtUndlr,undlyAstNm,commDescLeg1,commDescLeg2,undlrIdPx,othUndlrIdPx,futValNotl,fxFixSrc,numOfAccrDays,secAstCl,lrgNotlOffFacSwapInd,sefOrDcmInd,sefOrDcmAnonExecInd,manClrInd,sdMspIndCp1,sdMspIndCp2,rptDt,upi,cp1idsrc,clrmbridsrc,dsbastcl,dsbinstrtyp,dsblvl,dsbprd,dsbaddsubprd,dsbbsprd,dsbstdcntrctspec,dsbdbtsnr,dsbdlvrtyp,dsbinstrisin,dsbinstrlei,dsbnotlccy,dsbnotlsched,dsboptexersty,dsbopttyp,dsbothaddsubprd,dsbothbsprd,dsbothlegrefrt,dsbothlegrefrttrmunt,dsbothlegrefrttrmval,dsbothlegundlrchar,dsbothnotlccy,dsbothrefrt,dsbothsubprd,dsbothundlrchar,dsbplcstlmnt,dsbrefrt,dsbrefrttrmunt,dsbrefrttrmval,dsbrtnpyottrg,dsbstlmtccy,dsbsubprd,dsbundlrchar,dsbundlyasttyp,dsbundlycridxser,dsbundlycridxver,dsbundlyinstridx,dsbundlyinstridxprp,dsbundlyinstridxtrmunt,dsbundlyinstridxtrmval,dsbundlyinstrisin,dsbundlyinstrlei,dsbundlyinstrupi,dsbundlyisstyp,dsbvalumthdtrg,dsblstuptdttm,dsbsts,dsbstsrsn,dsbupi,dsbcfidlvrtyp,dsbcfioptstytyp,dsbclstyp,dsbshrtnm,dsbsglmultccy,dsbundlynm,dsbfthrgrpg"
+      },
+      "column_names_dsb_update": {
+        "S": "recordId,auditId,fileGroupId,fileDt,sdrId,cld,cntrlCp,clrAcctOr,clrMbr,clrSwapUsis,clrSwapUtis,origSwapUsi,origSwapUti,origSwapSdrId,clrRcptTs,clrExcExemptCp1,clrExcExemptCp2,cp1,cp2,cp2IdSrc,cp1FinEntInd,cp2FinEntInd,buyerId,sellerId,pyrIdLeg1,pyrIdLeg2,recrIdLeg1,recrIdLeg2,cp1FedEntInd,cp2FedEntInd,custBskInd,actnTyp,evtTyp,amdInd,evtId,evtTs,notlAmtLeg1,notlAmtLeg2,notlCcyLeg1,notlCcyLeg2,notlAmtEfctAssoEffDtLeg1,notlAmtEfctAssoEffDtLeg2,effDtNotlAmtLeg1,effDtNotlAmtLeg2,endDtNotlAmtLeg1,endDtNotlAmtLeg2,callAmtLeg1,callAmtLeg2,callCcyLeg1,callCcyLeg2,putAmtLeg1,putAmtLeg2,putCcyLeg1,putCcyLeg2,notlQtyLeg1,notlQtyLeg2,qtyFreqLeg1,qtyFreqLeg2,qtyFreqMultLeg1,qtyFreqMultLeg2,qtyUomLeg1,qtyUomLeg2,totNotlQtyLeg1,totNotlQtyLeg2,pckgInd,pckgId,pckgTransPx,pckgTransPxCcy,pckgTransPxNot,pckgTransSprd,pckgTransSprdCcy,pckgTransSprdNot,fxdRtDayCntConvLeg1,fxdRtDayCntConvLeg2,fltrtdaycntconvleg1,fltrtdaycntconvleg2,fixDtLeg1,fixDtLeg2,fltRtRstFreqPrdLeg1,fltRtRstFreqPrdLeg2,fltRtRstFreqPrdMultLeg1,fltRtRstFreqPrdMultLeg2,othPmtTyp,othPmtAmt,othPmtCcy,othPmtDt,othPmtPyr,othPmtRecr,fxdRtPmtFreqPrdLeg1,fxdRtPmtFreqPrdLeg2,fltRtPmtFreqPrdLeg1,fltRtPmtFreqPrdLeg2,fxdRtPmtFreqPrdMultLeg1,fxdRtPmtFreqPrdMultLeg2,fltRtPmtFreqPrdMultLeg1,fltRtPmtFreqPrdMultLeg2,exchRt,exchRtBasis,fxdRtLeg1,fxdRtLeg2,postPxSwapInd,px,pxCcy,pxNot,pxUom,sprdLeg1,sprdLeg2,sprdCcyLeg1,sprdCcyLeg2,sprdNotLeg1,sprdNotLeg2,strkPx,strkPxCcyOrCcyPr,strkPxNot,optPremAmt,optPremCcy,optPremPmtDt,fstExerDt,cdsIdxAtchPt,cdsIdxDetPt,idxFactr,embOptTyp,fnlContrStlmtDt,stlmtCcyLeg1,stlmtCcyLeg2,stlmtLocLeg1,stlmtLocLeg2,allocInd,nonStdTrmInd,blkTrdElectInd,effDt,expDt,execTs,pltfId,prmBrkgTransInd,priorUsi,priorUti,usi,uti,jdx,nextFltRefRstDtLeg1,nextFltRefRstDtLeg2,lastFltRefValLeg1,lastFltRefValLeg2,lastFltRefRstDtLeg1,lastFltRefRstDtLeg2,\"delta\",valuAmt,valuCcy,valuMthd,valuTs,initMarCollatPortCd,varMarCollatPortCd,astCl,ccyAssocdUndlyIdxLeg1,ccyAssocdUndlyIdxLeg2,dlvrTyp,instrTyp,notlSchedTypLeg1,notlSchedTypLeg2,optSty,optTyp,rtnPxMthdOrPyotTrg,snr,sglMultCcy,stdCntrctSpec,undlrIdLeg1,undlrIdLeg2,undlrIdSrcLeg1,undlrIdSrcLeg2,undlyAstOrUndlyCntrctTypLeg1,undlyAstOrUndlyCntrctTypLeg2,undlyAstCntrctSubtypLeg1,undlyAstCntrctSubtypLeg2,undlyCridxSer,undlyCridxVer,undlyRtIdxTnrPrdLeg1,undlyRtIdxTnrPrdLeg2,undlyRtIdxTnrPrdMultLeg1,undlyRtIdxTnrPrdMultLeg2,prodNm,prodCd,prodCdTyp,optExerFreqPrd,optExerFreqPrdMult,optExerEndDt,physCommCntrctInd,physDelvrRgnLeg1,physDelvrRgnLeg2,pxIdxRgnLeg1,pxIdxRgnLeg2,physDelvrLocLeg1,physDelvrLocLeg2,pxIdxLocLeg1,pxIdxLocLeg2,commSwapCat,othCommSwapCat,prodGrd,trdTyp,matDtUndlr,undlyAstNm,commDescLeg1,commDescLeg2,undlrIdPx,othUndlrIdPx,futValNotl,fxFixSrc,numOfAccrDays,secAstCl,lrgNotlOffFacSwapInd,sefOrDcmInd,sefOrDcmAnonExecInd,manClrInd,sdMspIndCp1,sdMspIndCp2,rptDt,upi,cp1idsrc,clrmbridsrc,dsbastcl,dsbinstrtyp,dsblvl,dsbprd,dsbaddsubprd,dsbbsprd,dsbstdcntrctspec,dsbdbtsnr,dsbdlvrtyp,dsbinstrisin,dsbinstrlei,dsbnotlccy,dsbnotlsched,dsboptexersty,dsbopttyp,dsbothaddsubprd,dsbothbsprd,dsbothlegrefrt,dsbothlegrefrttrmunt,dsbothlegrefrttrmval,dsbothlegundlrchar,dsbothnotlccy,dsbothrefrt,dsbothsubprd,dsbothundlrchar,dsbplcstlmnt,dsbrefrt,dsbrefrttrmunt,dsbrefrttrmval,dsbrtnpyottrg,dsbstlmtccy,dsbsubprd,dsbundlrchar,dsbundlyasttyp,dsbundlycridxser,dsbundlycridxver,dsbundlyinstridx,dsbundlyinstridxprp,dsbundlyinstridxtrmunt,dsbundlyinstridxtrmval,dsbundlyinstrisin,dsbundlyinstrlei,dsbundlyinstrupi,dsbundlyisstyp,dsbvalumthdtrg,dsblstuptdttm,dsbsts,dsbstsrsn,dsbupi,dsbcfidlvrtyp,dsbcfioptstytyp,dsbclstyp,dsbshrtnm,dsbsglmultccy,dsbundlynm,dsbfthrgrpg,dsbctgry,dsbgrp,dsboptstytyp"
+      },
+      "copy_command": {
+        "S": "BEGIN; COPY {table_name} ({column_names}) FROM '{processing_file}' CREDENTIALS '{redshift_access_role}' DELIMITER '|' EXPLICIT_IDS gzip IGNOREHEADER 1 emptyasnull CSV timeformat 'auto' DATEFORMAT 'YYYY-MM-DD' MAXERROR  100000 TRUNCATECOLUMNS ; END ;"
+      },
+      "db_name": {
+        "S": "mfdc"
+      },
+      "delete_command": {
+        "S": "BEGIN; Delete from {redshift_schema}.{table_name} where fileDt = '{file_date}' and sdrId = '{sdr_id}'; END;"
+      },
+      "dm_column_names": {
+        "S": "recordId::BIGINT, auditId::VARCHAR(50), fileGroupId::VARCHAR(10), fileDt, sdrId::VARCHAR(10), cld::VARCHAR(1),cntrlCp::VARCHAR(20), clrAcctOr::VARCHAR(4),clrMbr::VARCHAR(72),clrSwapUsis::VARCHAR(500),clrSwapUtis::VARCHAR(500),origSwapUsi::VARCHAR(42),origSwapUti::VARCHAR(52),origSwapSdrId::VARCHAR(20),to_timestamp(clrRcptTs, 'YYYY-MM-DD HH24:MI:SS') as clrRcptTs,clrExcExemptCp1::VARCHAR(500),clrExcExemptCp2::VARCHAR(500),cp1::VARCHAR(72),cp2::VARCHAR(72),cp2IdSrc::VARCHAR(4),cp1FinEntInd::VARCHAR(5),cp2FinEntInd::VARCHAR(5),buyerId::VARCHAR(72),sellerId::VARCHAR(72),pyrIdLeg1::VARCHAR(72),pyrIdLeg2::VARCHAR(72),recrIdLeg1::VARCHAR(72),recrIdLeg2::VARCHAR(72),cp1FedEntInd::VARCHAR(5),cp2FedEntInd::VARCHAR(5),custBskInd::VARCHAR(5),actnTyp::VARCHAR(4),evtTyp::VARCHAR(4),amdInd::VARCHAR(5),evtId::VARCHAR(52),to_timestamp(evtTs, 'YYYY-MM-DD HH24:MI:SS') as evtTs,notlAmtLeg1::VARCHAR(500),notlAmtLeg2,notlCcyLeg1::VARCHAR(3),notlCcyLeg2::VARCHAR(3),notlAmtEfctAssoEffDtLeg1::VARCHAR(500),notlAmtEfctAssoEffDtLeg2::VARCHAR(500),effDtNotlAmtLeg1::VARCHAR(500),effDtNotlAmtLeg2::VARCHAR(500),endDtNotlAmtLeg1::VARCHAR(500),endDtNotlAmtLeg2::VARCHAR(500),callAmtLeg1,callAmtLeg2,callCcyLeg1::VARCHAR(3),callCcyLeg2::VARCHAR(3),putAmtLeg1,putAmtLeg2,putCcyLeg1::VARCHAR(3),putCcyLeg2::VARCHAR(3),notlQtyLeg1::VARCHAR(500),notlQtyLeg2::VARCHAR(500),qtyFreqLeg1::VARCHAR(500),qtyFreqLeg2::VARCHAR(500),qtyFreqMultLeg1::VARCHAR(500),qtyFreqMultLeg2::VARCHAR(500),qtyUomLeg1::VARCHAR(500),qtyUomLeg2::VARCHAR(500),totNotlQtyLeg1,totNotlQtyLeg2,pckgInd::VARCHAR(5),pckgId::VARCHAR(100),pckgTransPx,pckgTransPxCcy::VARCHAR(3),pckgTransPxNot::VARCHAR(1),pckgTransSprd,pckgTransSprdCcy::VARCHAR(3),pckgTransSprdNot::VARCHAR(1),fxdRtDayCntConvLeg1::VARCHAR(4),fxdRtDayCntConvLeg2::VARCHAR(4),fltRtRstFreqConvLeg1::VARCHAR(4),fltRtRstFreqConvLeg2::VARCHAR(4),to_date(fixDtLeg1, 'YYYY-MM-DD') as fixDtLeg1,to_date(fixDtLeg2, 'YYYY-MM-DD') as fixDtLeg2,fltRtRstFreqPrdLeg1::VARCHAR(4),fltRtRstFreqPrdLeg2::VARCHAR(4),fltRtRstFreqPrdMultLeg1::INT,fltRtRstFreqPrdMultLeg2::INT,othPmtTyp::VARCHAR(500),othPmtAmt::VARCHAR(500),othPmtCcy::VARCHAR(500),othPmtDt::VARCHAR(500),othPmtPyr::VARCHAR(500),othPmtRecr::VARCHAR(500),fxdRtPmtFreqPrdLeg1::VARCHAR(4),fxdRtPmtFreqPrdLeg2::VARCHAR(4),fltRtPmtFreqPrdLeg1::VARCHAR(4),fltRtPmtFreqPrdLeg2::VARCHAR(4),fxdRtPmtFreqPrdMultLeg1::INT,fxdRtPmtFreqPrdMultLeg2::INT,fltRtPmtFreqPrdMultLeg1::INT,fltRtPmtFreqPrdMultLeg2::INT,exchRt,exchRtBasis::VARCHAR(7),fxdRtLeg1,fxdRtLeg2,postPxSwapInd::VARCHAR(5),px::VARCHAR(500),pxCcy::VARCHAR(500),pxNot::VARCHAR(1),pxUom::VARCHAR(4),sprdLeg1::VARCHAR(500),sprdLeg2,sprdCcyLeg1::VARCHAR(3),sprdCcyLeg2::VARCHAR(3),sprdNotLeg1::VARCHAR(1),sprdNotLeg2::VARCHAR(1),strkPx::VARCHAR(500),strkPxCcyOrCcyPr::VARCHAR(500),strkPxNot::VARCHAR(1),optPremAmt::VARCHAR(500),optPremCcy::VARCHAR(3),to_date(optPremPmtDt, 'YYYY-MM-DD') as optPremPmtDt,to_date(fstExerDt, 'YYYY-MM-DD') as fstExerDt,cdsIdxAtchPt,cdsIdxDetPt,idxFactr,embOptTyp::VARCHAR(4),to_date(fnlContrStlmtDt, 'YYYY-MM-DD') as fnlContrStlmtDt,stlmtCcyLeg1::VARCHAR(3),stlmtCcyLeg2::VARCHAR(3),stlmtLocLeg1::VARCHAR(2),stlmtLocLeg2::VARCHAR(2),allocInd::VARCHAR(4),nonStdTrmInd::VARCHAR(5),blkTrdElectInd::VARCHAR(5),effDt::VARCHAR(500),expDt::VARCHAR(500),to_timestamp(execTs, 'YYYY-MM-DD HH24:MI:SS') as execTs,pltfId::VARCHAR(4),prmBrkgTransInd::VARCHAR(5),priorUsi::VARCHAR(42),priorUti::VARCHAR(52),usi::VARCHAR(42),uti::VARCHAR(52),jdx::VARCHAR(4),to_date(nextFltRefRstDtLeg1, 'YYYY-MM-DD') as nextFltRefRstDtLeg1,to_date(nextFltRefRstDtLeg2, 'YYYY-MM-DD') as nextFltRefRstDtLeg2,lastFltRefValLeg1,lastFltRefValLeg2,to_date(lastFltRefRstDtLeg1, 'YYYY-MM-DD') as lastFltRefRstDtLeg1,to_date(lastFltRefRstDtLeg2, 'YYYY-MM-DD') as lastFltRefRstDtLeg2,\"delta\",valuAmt,valuCcy::VARCHAR(3),valuMthd::VARCHAR(4),to_date(valuTs, 'YYYY-MM-DD') as valuTs,initMarCollatPortCd::VARCHAR(52),varMarCollatPortCd::VARCHAR(52),astCl::VARCHAR(500),ccyAssocdUndlyIdxLeg1::VARCHAR(3),ccyAssocdUndlyIdxLeg2::VARCHAR(3),dlvrTyp::VARCHAR(500),instrTyp::VARCHAR(500),notlSchedTypLeg1::VARCHAR(500),notlSchedTypLeg2::VARCHAR(500),optSty::VARCHAR(500),optTyp::VARCHAR(500),rtnPxMthdOrPyotTrg::VARCHAR(500),snr::VARCHAR(500),sglMultCcy::VARCHAR(500),stdCntrctSpec::VARCHAR(500),undlrIdLeg1::VARCHAR(500),undlrIdLeg2::VARCHAR(500),undlrIdSrcLeg1::VARCHAR(500),undlrIdSrcLeg2::VARCHAR(500),undlyAstOrUndlyCntrctTypLeg1::VARCHAR(500),undlyAstOrUndlyCntrctTypLeg2::VARCHAR(500),undlyAstCntrctSubtypLeg1::VARCHAR(500),undlyAstCntrctSubtypLeg2::VARCHAR(500),undlyCridxSer::INT,undlyCridxVer::INT,undlyRtIdxTnrPrdLeg1::VARCHAR(500),undlyRtIdxTnrPrdLeg2::VARCHAR(500),undlyRtIdxTnrPrdMultLeg1::INT,undlyRtIdxTnrPrdMultLeg2::INT,prodNm::VARCHAR(100),prodCd::VARCHAR(30),prodCdTyp::VARCHAR(20),optExerFreqPrd::VARCHAR(4),optExerFreqPrdMult::INT,to_date(optExerEndDt, 'YYYY-MM-DD') as optExerEndDt,physCommCntrctInd::VARCHAR(5),physDelvrRgnLeg1::VARCHAR(120),physDelvrRgnLeg2::VARCHAR(120),pxIdxRgnLeg1::VARCHAR(120),pxIdxRgnLeg2::VARCHAR(120),physDelvrLocLeg1::VARCHAR(120),physDelvrLocLeg2::VARCHAR(120),pxIdxLocLeg1::VARCHAR(120),pxIdxLocLeg2::VARCHAR(120),commSwapCat::VARCHAR(50),othCommSwapCat::VARCHAR(50),prodGrd::VARCHAR(50),trdTyp::VARCHAR(150),to_date(matDtUndlr, 'YYYY-MM-DD') as matDtUndlr,undlyAstNm::VARCHAR(150),commDescLeg1::VARCHAR(30),commDescLeg2::VARCHAR(30),undlrIdPx::VARCHAR(50),othUndlrIdPx::VARCHAR(50),futValNotl,fxFixSrc::VARCHAR(30),numOfAccrDays::INT,secAstCl::VARCHAR(500),lrgNotlOffFacSwapInd::VARCHAR(5),sefOrDcmInd::VARCHAR(5),sefOrDcmAnonExecInd::VARCHAR(5),manClrInd::VARCHAR(5),sdMspIndCp1::VARCHAR(5),sdMspIndCp2::VARCHAR(5),to_date(rptDt, 'YYYY-MM-DD') as rptDt"
+      },
+      "dm_column_names_2_4": {
+        "S": "recordId::BIGINT, auditId::VARCHAR(50), fileGroupId::VARCHAR(10), fileDt, sdrId::VARCHAR(10), cld::VARCHAR(1), cntrlCp::VARCHAR(20), clrAcctOr::VARCHAR(4), clrMbr::VARCHAR(72), clrSwapUsis::VARCHAR(500), clrSwapUtis::VARCHAR(500), origSwapUsi::VARCHAR(42), origSwapUti::VARCHAR(52), origSwapSdrId::VARCHAR(20), to_timestamp(clrRcptTs, 'YYYY-MM-DD HH24:MI:SS') as clrRcptTs, clrExcExemptCp1::VARCHAR(500), clrExcExemptCp2::VARCHAR(500), cp1::VARCHAR(72), cp2::VARCHAR(72), cp2IdSrc::VARCHAR(4), cp1FinEntInd::VARCHAR(5), cp2FinEntInd::VARCHAR(5), buyerId::VARCHAR(72), sellerId::VARCHAR(72), pyrIdLeg1::VARCHAR(72), pyrIdLeg2::VARCHAR(72), recrIdLeg1::VARCHAR(72), recrIdLeg2::VARCHAR(72), cp1FedEntInd::VARCHAR(5), cp2FedEntInd::VARCHAR(5), custBskInd::VARCHAR(5), actnTyp::VARCHAR(4), evtTyp::VARCHAR(4), amdInd::VARCHAR(5), evtId::VARCHAR(52), to_timestamp(evtTs, 'YYYY-MM-DD HH24:MI:SS') as evtTs, notlAmtLeg1, notlAmtLeg2, notlCcyLeg1::VARCHAR(3), notlCcyLeg2::VARCHAR(3), notlAmtEfctAssoEffDtLeg1::VARCHAR(500), notlAmtEfctAssoEffDtLeg2::VARCHAR(500), effDtNotlAmtLeg1::VARCHAR(500), effDtNotlAmtLeg2::VARCHAR(500), endDtNotlAmtLeg1::VARCHAR(500), endDtNotlAmtLeg2::VARCHAR(500), callAmtLeg1, callAmtLeg2, callCcyLeg1::VARCHAR(3), callCcyLeg2::VARCHAR(3), putAmtLeg1, putAmtLeg2, putCcyLeg1::VARCHAR(3), putCcyLeg2::VARCHAR(3), notlQtyLeg1::VARCHAR(500), notlQtyLeg2::VARCHAR(500), qtyFreqLeg1::VARCHAR(500), qtyFreqLeg2::VARCHAR(500), qtyFreqMultLeg1::VARCHAR(500), qtyFreqMultLeg2::VARCHAR(500), qtyUomLeg1::VARCHAR(500), qtyUomLeg2::VARCHAR(500), totNotlQtyLeg1, totNotlQtyLeg2, pckgInd::VARCHAR(5), pckgId::VARCHAR(100), pckgTransPx, pckgTransPxCcy::VARCHAR(3), pckgTransPxNot::VARCHAR(1), pckgTransSprd, pckgTransSprdCcy::VARCHAR(3), pckgTransSprdNot::VARCHAR(1), fxdRtDayCntConvLeg1::VARCHAR(4), fxdRtDayCntConvLeg2::VARCHAR(4), fltrtdaycntconvleg1::VARCHAR(4), fltrtdaycntconvleg2::VARCHAR(4),to_date(fixDtLeg1, 'YYYY-MM-DD') as fixDtLeg1, to_date(fixDtLeg2, 'YYYY-MM-DD') as fixDtLeg2, fltRtRstFreqPrdLeg1::VARCHAR(4), fltRtRstFreqPrdLeg2::VARCHAR(4), fltRtRstFreqPrdMultLeg1::INT, fltRtRstFreqPrdMultLeg2::INT, othPmtTyp::VARCHAR(500), othPmtAmt::VARCHAR(500), othPmtCcy::VARCHAR(500), othPmtDt::VARCHAR(500), othPmtPyr::VARCHAR(500), othPmtRecr::VARCHAR(500), fxdRtPmtFreqPrdLeg1::VARCHAR(4), fxdRtPmtFreqPrdLeg2::VARCHAR(4), fltRtPmtFreqPrdLeg1::VARCHAR(4), fltRtPmtFreqPrdLeg2::VARCHAR(4), fxdRtPmtFreqPrdMultLeg1::INT, fxdRtPmtFreqPrdMultLeg2::INT, fltRtPmtFreqPrdMultLeg1::INT, fltRtPmtFreqPrdMultLeg2::INT, exchRt, exchRtBasis::VARCHAR(7), fxdRtLeg1, fxdRtLeg2, postPxSwapInd::VARCHAR(5), px::VARCHAR(500), pxCcy::VARCHAR(500), pxNot::VARCHAR(1), pxUom::VARCHAR(4), sprdLeg1::VARCHAR(500), sprdLeg2::VARCHAR(500), sprdCcyLeg1::VARCHAR(3), sprdCcyLeg2::VARCHAR(3), sprdNotLeg1::VARCHAR(1), sprdNotLeg2::VARCHAR(1), strkPx::VARCHAR(500), strkPxCcyOrCcyPr::VARCHAR(500), strkPxNot::VARCHAR(1), optPremAmt::VARCHAR(500), optPremCcy::VARCHAR(3), to_date(optPremPmtDt, 'YYYY-MM-DD') as optPremPmtDt, to_date(fstExerDt, 'YYYY-MM-DD') as fstExerDt, cdsIdxAtchPt, cdsIdxDetPt, idxFactr, embOptTyp::VARCHAR(4), to_date(fnlContrStlmtDt, 'YYYY-MM-DD') as fnlContrStlmtDt, stlmtCcyLeg1::VARCHAR(3), stlmtCcyLeg2::VARCHAR(3), stlmtLocLeg1::VARCHAR(2),  stlmtLocLeg2::VARCHAR(2), allocInd::VARCHAR(4), nonStdTrmInd::VARCHAR(5), blkTrdElectInd::VARCHAR(5), effDt::VARCHAR(500), expDt::VARCHAR(500), to_timestamp(execTs, 'YYYY-MM-DD HH24:MI:SS') as execTs, pltfId::VARCHAR(4), prmBrkgTransInd::VARCHAR(5), priorUsi::VARCHAR(42), priorUti::VARCHAR(52), usi::VARCHAR(42), uti::VARCHAR(52), jdx::VARCHAR(4), to_date(nextFltRefRstDtLeg1, 'YYYY-MM-DD') as nextFltRefRstDtLeg1, to_date(nextFltRefRstDtLeg2, 'YYYY-MM-DD') as nextFltRefRstDtLeg2, lastFltRefValLeg1, lastFltRefValLeg2, to_date(lastFltRefRstDtLeg1, 'YYYY-MM-DD') as lastFltRefRstDtLeg1, to_date(lastFltRefRstDtLeg2, 'YYYY-MM-DD') as lastFltRefRstDtLeg2, \"delta\", valuAmt, valuCcy::VARCHAR(3), valuMthd::VARCHAR(4), to_date(valuTs, 'YYYY-MM-DD') as valuTs, initMarCollatPortCd::VARCHAR(52), varMarCollatPortCd::VARCHAR(52), astCl::VARCHAR(500), ccyAssocdUndlyIdxLeg1::VARCHAR(3), ccyAssocdUndlyIdxLeg2::VARCHAR(3), dlvrTyp::VARCHAR(500), instrTyp::VARCHAR(500), notlSchedTypLeg1::VARCHAR(500), notlSchedTypLeg2::VARCHAR(500), optSty::VARCHAR(500), optTyp::VARCHAR(500), rtnPxMthdOrPyotTrg::VARCHAR(500), snr::VARCHAR(500), sglMultCcy::VARCHAR(500), stdCntrctSpec::VARCHAR(500), undlrIdLeg1::VARCHAR(500), undlrIdLeg2::VARCHAR(500), undlrIdSrcLeg1::VARCHAR(500), undlrIdSrcLeg2::VARCHAR(500), undlyAstOrUndlyCntrctTypLeg1::VARCHAR(500), undlyAstOrUndlyCntrctTypLeg2::VARCHAR(500), undlyAstCntrctSubtypLeg1::VARCHAR(500), undlyAstCntrctSubtypLeg2::VARCHAR(500), undlyCridxSer::INT, undlyCridxVer::INT, undlyRtIdxTnrPrdLeg1::VARCHAR(500), undlyRtIdxTnrPrdLeg2::VARCHAR(500), undlyRtIdxTnrPrdMultLeg1::INT, undlyRtIdxTnrPrdMultLeg2::INT, prodNm::VARCHAR(100), prodCd::VARCHAR(30), prodCdTyp::VARCHAR(20), optExerFreqPrd::VARCHAR(4), optExerFreqPrdMult::INT, to_date(optExerEndDt, 'YYYY-MM-DD') as optExerEndDt, physCommCntrctInd::VARCHAR(5), physDelvrRgnLeg1::VARCHAR(120), physDelvrRgnLeg2::VARCHAR(120), pxIdxRgnLeg1::VARCHAR(120), pxIdxRgnLeg2::VARCHAR(120), physDelvrLocLeg1::VARCHAR(500), physDelvrLocLeg2::VARCHAR(500), pxIdxLocLeg1::VARCHAR(120), pxIdxLocLeg2::VARCHAR(120), commSwapCat::VARCHAR(50), othCommSwapCat::VARCHAR(50), prodGrd::VARCHAR(500), trdTyp::VARCHAR(150), to_date(matDtUndlr, 'YYYY-MM-DD') as matDtUndlr, undlyAstNm::VARCHAR(150), commDescLeg1::VARCHAR(30), commDescLeg2::VARCHAR(30), undlrIdPx::VARCHAR(50), othUndlrIdPx::VARCHAR(50), futValNotl, fxFixSrc::VARCHAR(30), numOfAccrDays::INT, secAstCl::VARCHAR(500), lrgNotlOffFacSwapInd::VARCHAR(5), sefOrDcmInd::VARCHAR(5), sefOrDcmAnonExecInd::VARCHAR(5), manClrInd::VARCHAR(5), sdMspIndCp1::VARCHAR(5), sdMspIndCp2::VARCHAR(5), to_date(rptDt, 'YYYY-MM-DD') as rptDt, upi::VARCHAR(12), cp1idsrc::VARCHAR(4), clrmbridsrc::VARCHAR(4), dsbastcl::VARCHAR(500), dsbinstrtyp::VARCHAR(500), dsblvl::VARCHAR(500), dsbprd::VARCHAR(500), dsbaddsubprd::VARCHAR(500), dsbbsprd::VARCHAR(500), dsbstdcntrctspec::VARCHAR(500), dsbdbtsnr::VARCHAR(500), dsbdlvrtyp::VARCHAR(500), dsbinstrisin::VARCHAR(500), dsbinstrlei::VARCHAR(500), dsbnotlccy::VARCHAR(500), dsbnotlsched::VARCHAR(500), dsboptexersty::VARCHAR(500), dsbopttyp::VARCHAR(500), dsbothaddsubprd::VARCHAR(500), dsbothbsprd::VARCHAR(500), dsbothlegrefrt::VARCHAR(500), dsbothlegrefrttrmunt::VARCHAR(500), dsbothlegrefrttrmval::INT, dsbothlegundlrchar::VARCHAR(500), dsbothnotlccy::VARCHAR(500), dsbothrefrt::VARCHAR(500), dsbothsubprd::VARCHAR(500), dsbothundlrchar::VARCHAR(500), dsbplcstlmnt::VARCHAR(500), dsbrefrt::VARCHAR(500), dsbrefrttrmunt::VARCHAR(500), dsbrefrttrmval::INT, dsbrtnpyottrg::VARCHAR(500), dsbstlmtccy::VARCHAR(500), dsbsubprd::VARCHAR(500), dsbundlrchar::VARCHAR(500), dsbundlyasttyp::VARCHAR(500), dsbundlycridxser::VARCHAR(500), dsbundlycridxver::VARCHAR(500), dsbundlyinstridx::VARCHAR(500), dsbundlyinstridxprp::VARCHAR(500), dsbundlyinstridxtrmunt::VARCHAR(500), dsbundlyinstridxtrmval::INT, dsbundlyinstrisin::VARCHAR(500), dsbundlyinstrlei::VARCHAR(500), dsbundlyinstrupi::VARCHAR(500), dsbundlyisstyp::VARCHAR(500), dsbvalumthdtrg::VARCHAR(500), to_timestamp(dsblstuptdttm, 'YYYY-MM-DD HH24:MI:SS') as dsblstuptdttm, dsbsts::VARCHAR(500), dsbstsrsn::VARCHAR(500), dsbupi::VARCHAR(12), dsbcfidlvrtyp::VARCHAR(500), dsbcfioptstytyp::VARCHAR(500), dsbclstyp::VARCHAR(500), dsbshrtnm::VARCHAR(35), dsbsglmultccy::VARCHAR(500), dsbundlynm::VARCHAR(500), dsbfthrgrpg::VARCHAR(500)"
+      },
+      "dm_column_names_dsb_update": {
+        "S": "recordId::BIGINT, auditId::VARCHAR(50), fileGroupId::VARCHAR(10), fileDt, sdrId::VARCHAR(10), cld::VARCHAR(1), cntrlCp::VARCHAR(20), clrAcctOr::VARCHAR(4), clrMbr::VARCHAR(72), clrSwapUsis::VARCHAR(500), clrSwapUtis::VARCHAR(500), origSwapUsi::VARCHAR(42), origSwapUti::VARCHAR(52), origSwapSdrId::VARCHAR(20), to_timestamp(clrRcptTs, 'YYYY-MM-DD HH24:MI:SS') as clrRcptTs, clrExcExemptCp1::VARCHAR(500), clrExcExemptCp2::VARCHAR(500), cp1::VARCHAR(72), cp2::VARCHAR(72), cp2IdSrc::VARCHAR(4), cp1FinEntInd::VARCHAR(5), cp2FinEntInd::VARCHAR(5), buyerId::VARCHAR(72), sellerId::VARCHAR(72), pyrIdLeg1::VARCHAR(72), pyrIdLeg2::VARCHAR(72), recrIdLeg1::VARCHAR(72), recrIdLeg2::VARCHAR(72), cp1FedEntInd::VARCHAR(5), cp2FedEntInd::VARCHAR(5), custBskInd::VARCHAR(5), actnTyp::VARCHAR(4), evtTyp::VARCHAR(4), amdInd::VARCHAR(5), evtId::VARCHAR(52), to_timestamp(evtTs, 'YYYY-MM-DD HH24:MI:SS') as evtTs, notlAmtLeg1, notlAmtLeg2, notlCcyLeg1::VARCHAR(3), notlCcyLeg2::VARCHAR(3), notlAmtEfctAssoEffDtLeg1::VARCHAR(500), notlAmtEfctAssoEffDtLeg2::VARCHAR(500), effDtNotlAmtLeg1::VARCHAR(500), effDtNotlAmtLeg2::VARCHAR(500), endDtNotlAmtLeg1::VARCHAR(500), endDtNotlAmtLeg2::VARCHAR(500), callAmtLeg1, callAmtLeg2, callCcyLeg1::VARCHAR(3), callCcyLeg2::VARCHAR(3), putAmtLeg1, putAmtLeg2, putCcyLeg1::VARCHAR(3), putCcyLeg2::VARCHAR(3), notlQtyLeg1::VARCHAR(500), notlQtyLeg2::VARCHAR(500), qtyFreqLeg1::VARCHAR(500), qtyFreqLeg2::VARCHAR(500), qtyFreqMultLeg1::VARCHAR(500), qtyFreqMultLeg2::VARCHAR(500), qtyUomLeg1::VARCHAR(500), qtyUomLeg2::VARCHAR(500), totNotlQtyLeg1, totNotlQtyLeg2, pckgInd::VARCHAR(5), pckgId::VARCHAR(100), pckgTransPx, pckgTransPxCcy::VARCHAR(3), pckgTransPxNot::VARCHAR(1), pckgTransSprd, pckgTransSprdCcy::VARCHAR(3), pckgTransSprdNot::VARCHAR(1), fxdRtDayCntConvLeg1::VARCHAR(4), fxdRtDayCntConvLeg2::VARCHAR(4), fltrtdaycntconvleg1::VARCHAR(4), fltrtdaycntconvleg2::VARCHAR(4),to_date(fixDtLeg1, 'YYYY-MM-DD') as fixDtLeg1, to_date(fixDtLeg2, 'YYYY-MM-DD') as fixDtLeg2, fltRtRstFreqPrdLeg1::VARCHAR(4), fltRtRstFreqPrdLeg2::VARCHAR(4), fltRtRstFreqPrdMultLeg1::INT, fltRtRstFreqPrdMultLeg2::INT, othPmtTyp::VARCHAR(500), othPmtAmt::VARCHAR(500), othPmtCcy::VARCHAR(500), othPmtDt::VARCHAR(500), othPmtPyr::VARCHAR(500), othPmtRecr::VARCHAR(500), fxdRtPmtFreqPrdLeg1::VARCHAR(4), fxdRtPmtFreqPrdLeg2::VARCHAR(4), fltRtPmtFreqPrdLeg1::VARCHAR(4), fltRtPmtFreqPrdLeg2::VARCHAR(4), fxdRtPmtFreqPrdMultLeg1::INT, fxdRtPmtFreqPrdMultLeg2::INT, fltRtPmtFreqPrdMultLeg1::INT, fltRtPmtFreqPrdMultLeg2::INT, exchRt, exchRtBasis::VARCHAR(7), fxdRtLeg1, fxdRtLeg2, postPxSwapInd::VARCHAR(5), px::VARCHAR(500), pxCcy::VARCHAR(500), pxNot::VARCHAR(1), pxUom::VARCHAR(4), sprdLeg1::VARCHAR(500), sprdLeg2::VARCHAR(500), sprdCcyLeg1::VARCHAR(3), sprdCcyLeg2::VARCHAR(3), sprdNotLeg1::VARCHAR(1), sprdNotLeg2::VARCHAR(1), strkPx::VARCHAR(500), strkPxCcyOrCcyPr::VARCHAR(500), strkPxNot::VARCHAR(1), optPremAmt::VARCHAR(500), optPremCcy::VARCHAR(3), to_date(optPremPmtDt, 'YYYY-MM-DD') as optPremPmtDt, to_date(fstExerDt, 'YYYY-MM-DD') as fstExerDt, cdsIdxAtchPt, cdsIdxDetPt, idxFactr, embOptTyp::VARCHAR(4), to_date(fnlContrStlmtDt, 'YYYY-MM-DD') as fnlContrStlmtDt, stlmtCcyLeg1::VARCHAR(3), stlmtCcyLeg2::VARCHAR(3), stlmtLocLeg1::VARCHAR(2),  stlmtLocLeg2::VARCHAR(2), allocInd::VARCHAR(4), nonStdTrmInd::VARCHAR(5), blkTrdElectInd::VARCHAR(5), effDt::VARCHAR(500), expDt::VARCHAR(500), to_timestamp(execTs, 'YYYY-MM-DD HH24:MI:SS') as execTs, pltfId::VARCHAR(4), prmBrkgTransInd::VARCHAR(5), priorUsi::VARCHAR(42), priorUti::VARCHAR(52), usi::VARCHAR(42), uti::VARCHAR(52), jdx::VARCHAR(4), to_date(nextFltRefRstDtLeg1, 'YYYY-MM-DD') as nextFltRefRstDtLeg1, to_date(nextFltRefRstDtLeg2, 'YYYY-MM-DD') as nextFltRefRstDtLeg2, lastFltRefValLeg1, lastFltRefValLeg2, to_date(lastFltRefRstDtLeg1, 'YYYY-MM-DD') as lastFltRefRstDtLeg1, to_date(lastFltRefRstDtLeg2, 'YYYY-MM-DD') as lastFltRefRstDtLeg2, \"delta\", valuAmt, valuCcy::VARCHAR(3), valuMthd::VARCHAR(4), to_date(valuTs, 'YYYY-MM-DD') as valuTs, initMarCollatPortCd::VARCHAR(52), varMarCollatPortCd::VARCHAR(52), astCl::VARCHAR(500), ccyAssocdUndlyIdxLeg1::VARCHAR(3), ccyAssocdUndlyIdxLeg2::VARCHAR(3), dlvrTyp::VARCHAR(500), instrTyp::VARCHAR(500), notlSchedTypLeg1::VARCHAR(500), notlSchedTypLeg2::VARCHAR(500), optSty::VARCHAR(500), optTyp::VARCHAR(500), rtnPxMthdOrPyotTrg::VARCHAR(500), snr::VARCHAR(500), sglMultCcy::VARCHAR(500), stdCntrctSpec::VARCHAR(500), undlrIdLeg1::VARCHAR(500), undlrIdLeg2::VARCHAR(500), undlrIdSrcLeg1::VARCHAR(500), undlrIdSrcLeg2::VARCHAR(500), undlyAstOrUndlyCntrctTypLeg1::VARCHAR(500), undlyAstOrUndlyCntrctTypLeg2::VARCHAR(500), undlyAstCntrctSubtypLeg1::VARCHAR(500), undlyAstCntrctSubtypLeg2::VARCHAR(500), undlyCridxSer::INT, undlyCridxVer::INT, undlyRtIdxTnrPrdLeg1::VARCHAR(500), undlyRtIdxTnrPrdLeg2::VARCHAR(500), undlyRtIdxTnrPrdMultLeg1::INT, undlyRtIdxTnrPrdMultLeg2::INT, prodNm::VARCHAR(100), prodCd::VARCHAR(30), prodCdTyp::VARCHAR(20), optExerFreqPrd::VARCHAR(4), optExerFreqPrdMult::INT, to_date(optExerEndDt, 'YYYY-MM-DD') as optExerEndDt, physCommCntrctInd::VARCHAR(5), physDelvrRgnLeg1::VARCHAR(120), physDelvrRgnLeg2::VARCHAR(120), pxIdxRgnLeg1::VARCHAR(120), pxIdxRgnLeg2::VARCHAR(120), physDelvrLocLeg1::VARCHAR(500), physDelvrLocLeg2::VARCHAR(500), pxIdxLocLeg1::VARCHAR(120), pxIdxLocLeg2::VARCHAR(120), commSwapCat::VARCHAR(50), othCommSwapCat::VARCHAR(50), prodGrd::VARCHAR(500), trdTyp::VARCHAR(150), to_date(matDtUndlr, 'YYYY-MM-DD') as matDtUndlr, undlyAstNm::VARCHAR(150), commDescLeg1::VARCHAR(30), commDescLeg2::VARCHAR(30), undlrIdPx::VARCHAR(50), othUndlrIdPx::VARCHAR(50), futValNotl, fxFixSrc::VARCHAR(30), numOfAccrDays::INT, secAstCl::VARCHAR(500), lrgNotlOffFacSwapInd::VARCHAR(5), sefOrDcmInd::VARCHAR(5), sefOrDcmAnonExecInd::VARCHAR(5), manClrInd::VARCHAR(5), sdMspIndCp1::VARCHAR(5), sdMspIndCp2::VARCHAR(5), to_date(rptDt, 'YYYY-MM-DD') as rptDt, upi::VARCHAR(12), cp1idsrc::VARCHAR(4), clrmbridsrc::VARCHAR(4), dsbastcl::VARCHAR(500), dsbinstrtyp::VARCHAR(500), dsblvl::VARCHAR(500), dsbprd::VARCHAR(500), dsbaddsubprd::VARCHAR(500), dsbbsprd::VARCHAR(500), dsbstdcntrctspec::VARCHAR(500), dsbdbtsnr::VARCHAR(500), dsbdlvrtyp::VARCHAR(500), dsbinstrisin::VARCHAR(500), dsbinstrlei::VARCHAR(500), dsbnotlccy::VARCHAR(500), dsbnotlsched::VARCHAR(500), dsboptexersty::VARCHAR(500), dsbopttyp::VARCHAR(500), dsbothaddsubprd::VARCHAR(500), dsbothbsprd::VARCHAR(500), dsbothlegrefrt::VARCHAR(500), dsbothlegrefrttrmunt::VARCHAR(500), dsbothlegrefrttrmval::INT, dsbothlegundlrchar::VARCHAR(500), dsbothnotlccy::VARCHAR(500), dsbothrefrt::VARCHAR(500), dsbothsubprd::VARCHAR(500), dsbothundlrchar::VARCHAR(500), dsbplcstlmnt::VARCHAR(500), dsbrefrt::VARCHAR(500), dsbrefrttrmunt::VARCHAR(500), dsbrefrttrmval::INT, dsbrtnpyottrg::VARCHAR(500), dsbstlmtccy::VARCHAR(500), dsbsubprd::VARCHAR(500), dsbundlrchar::VARCHAR(500), dsbundlyasttyp::VARCHAR(500), dsbundlycridxser::VARCHAR(500), dsbundlycridxver::VARCHAR(500), dsbundlyinstridx::VARCHAR(500), dsbundlyinstridxprp::VARCHAR(500), dsbundlyinstridxtrmunt::VARCHAR(500), dsbundlyinstridxtrmval::INT, dsbundlyinstrisin::VARCHAR(500), dsbundlyinstrlei::VARCHAR(500), dsbundlyinstrupi::VARCHAR(500), dsbundlyisstyp::VARCHAR(500), dsbvalumthdtrg::VARCHAR(500), to_timestamp(dsblstuptdttm, 'YYYY-MM-DD HH24:MI:SS') as dsblstuptdttm, dsbsts::VARCHAR(500), dsbstsrsn::VARCHAR(500), dsbupi::VARCHAR(12), dsbcfidlvrtyp::VARCHAR(500), dsbcfioptstytyp::VARCHAR(500), dsbclstyp::VARCHAR(500), dsbshrtnm::VARCHAR(35), dsbsglmultccy::VARCHAR(500), dsbundlynm::VARCHAR(500), dsbfthrgrpg::VARCHAR(500), dsbctgry::VARCHAR(500), dsbgrp::varchar(500), dsboptstytyp::varchar(500)"
+      },
+      "dsb_classes": {
+        "S": "CR,FX,IR"
+      },
+      "dsb_column_names": {
+        "S": "upi,dsbAstCl,dsbInstrTyp,dsbLvl,dsbPrd,dsbAddSubPrd,dsbBsPrd,dsbStdCntrctSpec,dsbDbtSnr,dsbDlvrTyp,dsbInstrISIN,dsbInstrLEI,dsbNotlCcy,dsbNotlSched,dsbOptExerSty,dsbOptTyp,dsbOthAddSubPrd,dsbOthBsPrd,dsbOthLegRefRt,dsbOthLegRefRtTrmUnt,dsbOthLegRefRtTrmVal,dsbOthLegUndlrChar,dsbOthNotlCcy,dsbOthRefRt,dsbOthSubPrd,dsbOthUndlrChar,dsbPlcStlmnt,dsbRefRt,dsbRefRtTrmUnt,dsbRefRtTrmVal,dsbRtnPyotTrg,dsbStlmtCcy,dsbSubPrd,dsbUndlrChar,dsbUndlyAstTyp,dsbUndlyCrIdxSer,dsbUndlyCrIdxVer,dsbUndlyInstrIdx,dsbUndlyInstrIdxPrp,dsbUndlyInstrIdxTrmUnt,dsbUndlyInstrIdxTrmVal,dsbUndlyInstrISIN,dsbUndlyInstrLEI,dsbUndlyInstrUPI,dsbUndlyIssTyp,dsbValuMthdTrg,dsbLstUptDttm,dsbSts,dsbStsRsn,dsbUPI,dsbCFIDlvrTyp,dsbCFIOptStyTyp,dsbClsTyp,dsbShrtNm,dsbSglMultCcy,dsbUndlyNm,dsbFthrGrpg,dsbctgry,dsbgrp,dsboptstytyp"
+      },
+      "dsb_command": {
+        "S": "BEGIN; insert into {temp_table_name} ({dsb_column_names}) select distinct {dsb_column_names} from {redshift_schema}.{table_name} WHERE rptdt = '{report_dt}' and sdrId = '{sdr_id}'; END; BEGIN; Delete from {temp_table_name} where upi in (SELECT upi FROM {redshift_schema}.{dsb_table_name}); END; BEGIN; insert into {redshift_schema}.{dsb_table_name} ({dsb_column_names}) select {dsb_column_names} from {temp_table_name}; END; BEGIN; DROP TABLE {temp_table_name}; END;"
+      },
+      "error_command": {
+        "S": "BEGIN; insert into dw_sdr.error_log (fileId, startTime, \"queryId\", fileName, lineNumber, columnName, columnType, columnLength, rawFieldValue, errReason) select '{file_id}', starttime, query, filename, line_number -1, colname, type, col_length, raw_field_value, err_reason from stl_load_errors WHERE filename like '%{file_name}%' and starttime > '{start_time}'; END;"
+      },
+      "error_stg_command": {
+        "S": "BEGIN;  insert into  dw_sdr.os_error ( select s.* from dw_sdr.os_stg S inner join dw_sdr.error_log E on S.auditId = E.fileId and S.recordId = E.lineNumber  where E.fileId =  '{audit_id}' ); END;"
+      },
+      "error_table": {
+        "S": "OS_ERROR"
+      },
+      "expectd_rec_count_command": {
+        "S": "BEGIN;  update {redshift_schema}.{audit_table} set expected_record_count = (select pg_last_copy_count()), stop_time = getdate(), process_step = 'STAGE' where file_id = '{file_id}'; END;"
+      },
+      "extract_format": {
+        "S": "CSV"
+      },
+      "host_endpoint": {
+        "S": "redshift-cluster-1.cduryn6jmfij.us-east-1.redshift.amazonaws.com"
+      },
+      "insert_command": {
+        "S": "BEGIN; insert into {redshift_schema}.{table_name} ({column_names},cftc_record_key) select {dm_column_names}, MD5(UPPER(nvl(TRIM(usi), '') || nvl(TRIM(exects), '') || nvl(TRIM(expdt), '') || nvl(TRIM(cp1), '') || nvl(TRIM(cp2) , '') || nvl(TRIM(uti) , ''))) AS cftc_record_key from {temp_table_name} WHERE auditid = '{file_id}'; END ; BEGIN; DROP TABLE {temp_table_name}; END;"
+      },
+      "Insert_delete_command": {
+        "S": "BEGIN; Delete from {redshift_schema}.{table_name} where fileDt = '{file_date}' and sdrId = '{sdr_id}'; insert into {redshift_schema}.{table_name} ({column_names},cftc_record_key) select {dm_column_names}, MD5(UPPER(nvl(TRIM(usi), '') || nvl(TRIM(exects), '') || nvl(TRIM(expdt), '') || nvl(TRIM(cp1), '') || nvl(TRIM(cp2) , '') || nvl(TRIM(uti) , ''))) AS cftc_record_key from {temp_table_name} WHERE auditid = '{file_id}'; END ; BEGIN; DROP TABLE {temp_table_name}; END;"
+      },
+      "port": {
+        "S": "5439"
+      },
+      "record_exists_command": {
+        "S": "select count(1) from {redshift_schema}.{table_name} where fileDt = '{file_date}' and sdrId = '{sdr_id}';"
+      },
+      "rec_count_command": {
+        "S": "BEGIN;  update {redshift_schema}.{audit_table} set actual_record_count = (select pg_last_copy_count()), stop_time = getdate(), process_step = 'DATAMART' where file_id = '{file_id}'; END;"
+      },
+      "schema": {
+        "S": "dw_sdr"
+      },
+      "secret_arn": {
+        "S": "arn:aws:secretsmanager:us-east-1:844685140037:secret:mfdc_redshift_svc_secret-l3LzwQ"
+      },
+      "stage_command": {
+        "S": "BEGIN; COPY {redshift_schema}.{table_name} ({column_names}) FROM '{processing_file}' CREDENTIALS '{redshift_access_role}' DELIMITER '|' EXPLICIT_IDS gzip IGNOREHEADER 1 emptyasnull CSV timeformat 'auto' DATEFORMAT 'YYYY-MM-DD' MAXERROR  100000 TRUNCATECOLUMNS; END;"
+      },
+      "stage_table": {
+        "S": "OS_STG"
+      },
+      "stg_delete": {
+        "S": "BEGIN; Delete from {redshift_schema}.{table_name} where fileDt = '{file_date}' and sdrId = '{sdr_id}' and fileGroupId = '{file_group}'; END; "
+      },
+      "temp_table_command": {
+        "S": "BEGIN; CREATE TEMP TABLE {temp_table_name} (LIKE {redshift_schema}.{table_name}); END;"
+      },
+      "version_column_count": {
+        "M": {
+          "version_4_2": {
+            "N": "275"
+          },
+          "version_4_3": {
+            "N": "278"
+          }
+        }
+      }
+    }
+  },
+  "region_name": {
+    "S": "us-east-1"
+  },
+  "step_functions": {
+    "M": {
+      "execute_rs_command_arn": {
+        "S": "arn:aws:states:us-east-1:844685140037:stateMachine:mfdc_redshift_command"
+      },
+      "loader_arn": {
+        "S": "arn:aws:states:us-east-1:844685140037:stateMachine:mfdc_sdros_loader"
+      }
+    }
+  }
+}
+
+
+
+##############################################################################################
+### Author: Byju Sudhakaran
+### Date Started: 4/18/2022
+### Last Update Date: 06/22/2023
+### Lambda Function Name: mfdc_sdros_file_arrive
+###    Language: Python 3.9
+##############################################################################################
+import json
+import re
+import uuid
+import boto3
+import datetime
+from datetime import datetime
+import os
+import logging
+import io
+import zipfile
+
+#######################################################################
+### Global Variables: Set the logger
+#######################################################################
+logger = logging.getLogger('mfdc_sdros_loader')
+formatter = logging.Formatter('[%(levelname)s] %(message)s')
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+logger.propagate = False
+log_level_default = os.environ.get("LOG_LEVEL","DEBUG")
+function_name = ""
+
+s3_client = boto3.client('s3')
+
+##############################################################################################
+### S3 Event triggers this Lambda Function when a file is dropped in the Raw S3
+### bucket.
+##############################################################################################
+def lambda_handler(event, context): 
+    try:
+        logger.setLevel(log_level_default) #set initial log level, will be overriden, needed for pre-config grab from db
+        logger.debug(f"Event received : {event}") #log the arrival event
+
+        ##################################################################
+        ### Get the name of the Lambda Function from the context object.
+        ### It will be used if this lambda function throws exception.
+        ##################################################################
+        function_name = context.function_name
+
+        ##################################################################
+        ### Get the environment variables.
+        ##################################################################
+        config_table = verify_and_get_dict_value(function_name, os.environ, 'config_table_name', True);
+        app_name = verify_and_get_dict_value(function_name, os.environ, 'app_name', True);
+
+        #Get config entries from DynamoDB database.
+        config_values = setup_config_values_from_dynamoDB(config_table, app_name);
+
+        config_values['file_bucket'] = event['Records'][0]['s3']['bucket']['name'];
+        config_values['file_key'] = event['Records'][0]['s3']['object']['key'];
+        #extract file_name from the key. Save file_name to config_values
+        key_parts =  config_values['file_key'].split('/')
+        config_values['file_name'] = key_parts[-1]
+        config_values['processing_file'] = f"s3://{config_values['bucket_info']['staging_bucket']}/{config_values['bucket_info']['staging_key_prefix']}{config_values['file_name'].upper().replace('.ZIP', '.GZ')}"
+
+        logger.debug(f"Processing file {config_values['file_name']} config_table {str(config_table)} app_name {str(app_name)}  ") #log file name
+        logger.debug('The config_values is' + str(config_values) )
+        logger.setLevel(config_values['log'].get("log_level").upper())
+        
+        #Extract SDRID, asset class and Date from file name
+        regExCompiled = re.compile(config_values['file_name_regex'])
+        matchGroups = regExCompiled.search(config_values['file_name'] )
+        if matchGroups is not None:
+            config_values["file_dt"] = matchGroups.group('file_dt')
+            config_values['sdr_id'] = matchGroups.group('sdr_id').upper()
+            config_values['asset_class'] = matchGroups.group('asset_class').upper()
+            config_values['file_group'] = "SDROS_" + config_values['asset_class'].upper()
+        else:
+            raise Exception (f"Cannot find sdr_id, file_dt and asset_class from file name: {config_values['file_name']}, Regex: {config_values['file_name_regex']}")
+
+        #initialize config values for file audit
+        setup_config_values_for_FileAudit(config_values)
+
+        #Build step function input
+        sf_input = build_sf_input(config_values)
+        logger.debug(f"step function input completed {sf_input}. before calling statemachine." )
+        #Call statemachine    
+        sm_response = call_state_machine(config_values, sf_input, config_values['file_name'] );
+            
+    except ValueError as err:
+        logger.error('ValueError happened in mfdc_sdros_file_arrive() Lambda Function. The message is: ' + str(err));
+        raise err
+        
+    except Exception as ex:
+        template = "An exception of type {0} occurred in " + function_name + ". Arguments:\n{1!r}"
+        message = template.format(type(ex).__name__, ex.args)
+        logger.error(message);
+        raise ex 
+
+########################################################################################################################
+### Function: Get Config values from DynamoDB table
+### The function setup_config_values_from_dynamoDB is called from lambda_handler. 
+########################################################################################################################
+def setup_config_values_from_dynamoDB(config_table, app_name):
+    config_values = None
+    response_payload = None
+    logger.debug(f"Reading from DynamoDB: config_table - {config_table} app_name - {app_name}" )
+
+    dynamoDB = boto3.resource('dynamodb',region_name='us-east-1')
+    config_table = dynamoDB.Table(config_table)
+    response_payload = config_table.get_item(Key={'application_name': app_name})
+    logger.debug("Response from Dynamo: {}" + str(response_payload))
+    config_values = response_payload['Item']
+    config_values['app_name'] = app_name
+    
+    return config_values
+
+########################################################################################################################
+### Function: Initialize configuration for file audit
+### The function setup_config_values_for_FileAudit is called from lambda_handler after getting configurations from DynamoDB 
+########################################################################################################################    
+def setup_config_values_for_FileAudit(config_values):
+    #Setup fle audit configuraion values
+    file_audit = {}
+    log_parms = {}
+    # Get parent file ID
+    file_audit["file_path"] =  f"{config_values['file_bucket']}/{config_values['file_key'].rsplit('/',1)[0]}"
+    file_audit["file_name"] =  config_values['file_key'].rsplit('/',1)[-1]
+    file_audit["process_step"] = "STAGE"
+    file_audit["data_stream"] = "SDR"
+    file_audit["sub_data_stream"] = f"{config_values['sdr_id']}_{config_values['asset_class']}"
+    file_audit["action"] = "insert"
+    file_audit['loader'] = "SDR 2.0"
+    log_parms["file_audit"] = file_audit
+    config_values["LogParams"] = log_parms
+    config_values['ParentFileId'] = getAuditId( config_values["LogParams"])
+
+
+    # Get processing file ID
+    fileElements = config_values['processing_file'].rsplit('/',1)
+    file_audit["file_name"] =  fileElements[1]
+    file_audit["file_path"] = fileElements[0]
+    file_audit["parent_file_id"] = config_values['ParentFileId']
+    log_parms["file_audit"] = file_audit
+    config_values["LogParams"] = log_parms
+    print(config_values["LogParams"])
+    config_values['auditID'] = getAuditId( config_values["LogParams"])
+    
+    return config_values
+
+########################################################################################################################
+### Function: getAuditId
+###     parm1: source_file - File being processed 
+### Returns: audit Id for the file
+########################################################################################################################
+def getAuditId(fileAuditConfig):
+    logger.debug (f"fileAuditConfig - {fileAuditConfig}")
+    #Call lambda for new FileID
+    lambdaWraper = boto3.client('lambda')
+    lambdaPayload = fileAuditConfig
+    logger.debug (f"lambdaPayload - {json.dumps(lambdaPayload)}")
+    response = lambdaWraper.invoke(FunctionName = 'mfdc_file_audit', InvocationType='RequestResponse',  Payload = json.dumps(lambdaPayload))
+    logger.debug (f"response {response}")
+    fileId = ""
+    if 'Payload' in response:
+        response = json.loads(response["Payload"].read().decode("utf-8"))
+        fileId = response["file_id"]
+    else:
+        raise ValueError("Unable to generate FileID. Cannot continue file load.");
+
+    return fileId
+########################################################################################################################
+### Function: Get value from a given dictionary and throw value error if not found.
+########################################################################################################################
+def verify_and_get_dict_value(function_name, dict_of_values, data_key, is_required_field):
+    value_error = False
+    value = ''
+    errorMsg = ''
+
+    if data_key in dict_of_values:
+        value = dict_of_values[data_key]
+        if ( value is None or len(value) == 0 ) and is_required_field == True:
+            errorMsg = "ValueError happened in " + function_name + ". No data was found for Key: " + data_key + " in the dictionary. "
+            value_error = True
+    else:
+        if is_required_field == True:
+            errorMsg = "Key " + data_key + " not found in the dictionary. " 
+            value_error = True    
+
+    if value_error == True and is_required_field == True:
+        logger.debug(errorMsg)
+        raise ValueError(errorMsg)
+
+    return value
+
+
+########################################################################################################################
+### Function: Builds the step function input json.
+### Collecs all config values builds a dictionary with all the relevant info need to be passed to the step function.
+########################################################################################################################gz
+def build_sf_input(config_values):
+    logger.debug(f"Config values - {config_values}")
+    source_file = f"{config_values['file_bucket']}/{config_values['file_key']}"
+    
+    sf_values = {}
+
+    sf_values["SourceBucket"] = config_values['file_bucket']
+    sf_values["SourceKey"] = config_values['file_key']
+    sf_values["SourceBucketWithKey"] = source_file 
+    sf_values["StagingBucket"] = config_values["bucket_info"]["staging_bucket"]
+    sf_values["StagingKey"] = f"{config_values['bucket_info']['staging_key_prefix']}{config_values['file_name'].upper().replace('.zip', '.gz')}"
+    sf_values["ArchiveBucket"] = config_values["bucket_info"]["archive_bucket"]
+    sf_values["ArchiveKey"] = f"{config_values['bucket_info']['archive_key_prefix']}{config_values['file_name']}"
+    
+    sf_values["LogLevel"] = config_values['log'].get("log_level").upper()
+    sf_values["FileName"] = config_values['file_name']
+    
+    sf_values["HeaderBuffer"] = config_values['header_buffer']
+    
+    sf_values["LambdaFunctions"] = {
+        "BuildSnsMsg":config_values["lambda_functions"]["build_sns_msg"],
+        "ExecuteRsCommand":config_values["lambda_functions"]["execute_rs_command"],
+        "SendTaskResult":config_values["lambda_functions"]["send_task_result"],
+        "ConvertToJson": config_values["lambda_functions"]["convert_to_json"],
+        "LogAudit":  config_values["lambda_functions"]["file_audit"],
+        "RecCheckLambda":  config_values["lambda_functions"]["rec_check_lambda"],
+        "CreateRedshiftQueries":  config_values["lambda_functions"]["create_redshift_queries"]
+    }
+    
+    sf_values["SuccessBody"] = config_values["notifications"]["success"]["body"]
+    sf_values["SuccessSubject"] = config_values["notifications"]["success"]["subject"]
+    sf_values["FailureBody"] = config_values["notifications"]["failure"]["body"]
+    sf_values["FailureSubject"] = config_values["notifications"]["failure"]["subject"]
+    sf_values["NotificationArn"] = config_values["notifications"]["notification_arn"]
+    
+    sf_values['Batch'] = {
+        "JobQueue" : config_values["batch"]["job_queue"],
+        "JobDefinition" : config_values["batch"]["job_definition"],
+        "SourceFile" : f"s3://{source_file}",
+        "OutputFile" : config_values['processing_file'],
+        "AuditId" : config_values["auditID"] 
+    }
+
+    sf_values['LogParams']= config_values["LogParams"]
+
+    sf_values["FileDt"] =    config_values["file_dt"] 
+    sf_values["SdrId"] =    config_values['sdr_id'] 
+    sf_values["AssetClass"] =    config_values['asset_class']
+    sf_values["FileGroup"] =    config_values['file_group']
+    logger.debug("Step Function Input: {}" + str(sf_values))
+    
+    return sf_values
+
+########################################################################################################################
+### Function: Call the State Machine 
+########################################################################################################################
+def call_state_machine(config_values, sm_input,file_name): 
+    loader_arn = config_values["step_functions"]["loader_arn"]
+    
+    current_time_str = datetime.now().strftime("%H_%M_%S")
+    sm_name = file_name + '_' + current_time_str
+    sm_name = sm_name.replace('.', '_')
+
+    logger.debug('The sm_name is : ' + str(sm_name))
+
+    stepFun_client = boto3.client("stepfunctions")
+
+    logger.debug('Right BEFORE calling the State Machine with the ARN of: ' + str(loader_arn))
+
+    response = stepFun_client.start_execution(stateMachineArn=loader_arn,
+                    name=sm_name,
+                    input=json.dumps(sm_input))
+
+    logger.debug('Right AFTER calling the State Machine')
+
+    #Sanitize the statemachine response to turn the dates into strings
+    response = json.loads(json.dumps(response,default=str))
+    logger.debug("State Machine Response was: {}".format(response))
+    return response
