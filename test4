@@ -1,0 +1,146 @@
+import pandas as pd
+import numpy as np
+import pyodbc
+import sqlalchemy
+from sqlalchemy import create_engine
+import datetime
+from openpyxl import Workbook
+import smtplib
+from email.mime.text import MIMEText
+
+# Database Connection
+DB_CONNECTION_STRING = "DRIVER={SQL Server Native Client 11.0};SERVER=LPRDDCODM;DATABASE=DCODM01DB;Trusted_Connection=yes;"
+engine = create_engine(f"mssql+pyodbc:///?odbc_connect={DB_CONNECTION_STRING}")
+
+# Fetch Data from SQL Server
+def fetch_data_by_date(rpdate):
+    query = f"""
+        EXEC dbo.GetPart39AccountSummaryDataByDate
+        @fromDate = '{rpdate}',
+        @toDate = '{rpdate}'
+    """
+    df = pd.read_sql(query, engine).to_numpy()  # Convert DataFrame to NumPy array
+    
+    # Extract relevant columns
+    clearing_org = df[:, 1]  # Clearing organization ID
+    market_segment = df[:, 2]  # Market segment
+    margin_amount = df[:, 5]  # Total margin amount
+    
+    # Apply filtering logic using NumPy
+    valid_orgs = np.isin(clearing_org, ['CME', 'ICC', 'ICEU', 'ICUS', 'LCHSA', 'EUX'])
+    lch_filter = (clearing_org == 'LCHLTD') & ~np.isin(market_segment, ['FuturesOptions', 'FX'])
+    valid_rows = valid_orgs | lch_filter
+    
+    return df[valid_rows]  # Return filtered NumPy array
+
+# Generate business days for the month
+def get_business_days():
+    today = datetime.date.today()
+    first_day = today.replace(day=1)
+    last_month = (first_day - datetime.timedelta(days=1)).replace(day=1)
+    
+    business_days = pd.date_range(start=last_month, end=today, freq='B').to_numpy()
+    return business_days
+
+# Process each day's data
+def process_days():
+    business_days = get_business_days()
+    all_data = []
+    
+    for date in business_days:
+        print(f"Processing data for {date}...")
+        df = fetch_data_by_date(date)
+        if df.size > 0:
+            all_data.append(df)
+    
+    return np.vstack(all_data) if all_data else None  # Stack NumPy arrays vertically
+
+# Compute top 5 firms using NumPy
+def compute_top5(data, column_index):
+    """Sort and find top 5 firms based on a specific column index."""
+    unique_dates = np.unique(data[:, 0])  # Unique reporting dates
+    top5_list = []
+    
+    for date in unique_dates:
+        date_filter = data[:, 0] == date
+        segment_data = data[date_filter]
+        sorted_indices = np.argsort(segment_data[:, column_index])[::-1]  # Descending sort
+        top5_indices = sorted_indices[:5]
+        top5_list.append(segment_data[top5_indices])
+    
+    return np.vstack(top5_list)  # Stack top5 results
+
+# Generate summary data
+def generate_report_data(data):
+    fo_top5 = compute_top5(data, 5)  # Column index 5 (fo)
+    swaps_top5 = compute_top5(data, 6)  # Column index 6 (swaps)
+    total_top5 = compute_top5(data, 7)  # Column index 7 (total)
+    
+    unique_dates = np.unique(data[:, 0])
+    
+    summary_data = []
+    for date in unique_dates:
+        date_filter = data[:, 0] == date
+        daily_data = data[date_filter]
+        
+        fo_sum = np.sum(daily_data[:, 5])
+        swaps_sum = np.sum(daily_data[:, 6])
+        total_sum = np.sum(daily_data[:, 7])
+        
+        fo_top5_sum = np.sum(fo_top5[fo_top5[:, 0] == date][:, 5]) / fo_sum
+        swaps_top5_sum = np.sum(swaps_top5[swaps_top5[:, 0] == date][:, 6]) / swaps_sum
+        total_top5_sum = np.sum(total_top5[total_top5[:, 0] == date][:, 7]) / total_sum
+        
+        summary_data.append([date, fo_sum, swaps_sum, total_sum, fo_top5_sum, swaps_top5_sum, total_top5_sum])
+    
+    return np.array(summary_data)
+
+# Save to Excel
+def save_to_excel(data, filename):
+    df = pd.DataFrame(data, columns=["Date", "Total_Futures", "Total_Swaps", "Total_Total", "Fo_Top5", "Swaps_Top5", "Total_Top5"])
+    df.to_excel(filename, index=False)
+    print(f"Saved report to {filename}")
+
+# Send email notification
+def send_email_notification(monthend):
+    sender_email = "noreply@cftc.gov"
+    recipient_email = "cmarquardt@cftc.gov"
+    subject = "***Monthly Cleared Margin Data Updated***"
+    
+    body = f"""
+    Cleared Margin Data updated for {monthend}.
+
+    <a href='\\\\dcprdapsasm02\\CODE_DEV\\CFTC\\DCR\\MonthlyClearedMarginReport'>
+    Use plotPDF and text to create report
+    </a>
+    """
+
+    msg = MIMEText(body, "html")
+    msg["From"] = sender_email
+    msg["To"] = recipient_email
+    msg["Subject"] = subject
+
+    with smtplib.SMTP("smtp.cftc.gov") as server:
+        server.sendmail(sender_email, recipient_email, msg.as_string())
+
+    print("Email notification sent!")
+
+# Main Execution
+if __name__ == "__main__":
+    print("Starting data processing...")
+    final_data = process_days()
+    
+    if final_data is not None:
+        print("Generating report...")
+        report_data = generate_report_data(final_data)
+        
+        # Save final report
+        monthend = datetime.date.today().strftime("%b-%Y")
+        excel_filename = f"CFTC_ClearedMarginReport_Data_{monthend}.xlsx"
+        save_to_excel(report_data, excel_filename)
+        
+        # Send notification
+        send_email_notification(monthend)
+    
+    else:
+        print("No data found for the given period.")
