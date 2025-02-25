@@ -1,0 +1,281 @@
+##############################################################################################
+### Author: Byju Sudhakaran
+### Date Started: 4/18/2022
+### Last Update Date: 06/22/2023
+### Lambda Function Name: mfdc_sdros_file_arrive
+###    Language: Python 3.9
+##############################################################################################
+import json
+import re
+import uuid
+import boto3
+import datetime
+from datetime import datetime
+import os
+import logging
+import io
+import zipfile
+
+#######################################################################
+### Global Variables: Set the logger
+#######################################################################
+logger = logging.getLogger('mfdc_sdros_loader')
+formatter = logging.Formatter('[%(levelname)s] %(message)s')
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
+logger.propagate = False
+log_level_default = os.environ.get("LOG_LEVEL","DEBUG")
+function_name = ""
+
+s3_client = boto3.client('s3')
+
+##############################################################################################
+### S3 Event triggers this Lambda Function when a file is dropped in the Raw S3
+### bucket.
+##############################################################################################
+def lambda_handler(event, context): 
+    try:
+        logger.setLevel(log_level_default) #set initial log level, will be overriden, needed for pre-config grab from db
+        logger.debug(f"Event received : {event}") #log the arrival event
+
+        ##################################################################
+        ### Get the name of the Lambda Function from the context object.
+        ### It will be used if this lambda function throws exception.
+        ##################################################################
+        function_name = context.function_name
+
+        ##################################################################
+        ### Get the environment variables.
+        ##################################################################
+        config_table = verify_and_get_dict_value(function_name, os.environ, 'config_table_name', True);
+        app_name = verify_and_get_dict_value(function_name, os.environ, 'app_name', True);
+
+        #Get config entries from DynamoDB database.
+        config_values = setup_config_values_from_dynamoDB(config_table, app_name);
+
+        config_values['file_bucket'] = event['Records'][0]['s3']['bucket']['name'];
+        config_values['file_key'] = event['Records'][0]['s3']['object']['key'];
+        #extract file_name from the key. Save file_name to config_values
+        key_parts =  config_values['file_key'].split('/')
+        config_values['file_name'] = key_parts[-1]
+        config_values['processing_file'] = f"s3://{config_values['bucket_info']['staging_bucket']}/{config_values['bucket_info']['staging_key_prefix']}{config_values['file_name'].upper().replace('.ZIP', '.GZ')}"
+
+        logger.debug(f"Processing file {config_values['file_name']} config_table {str(config_table)} app_name {str(app_name)}  ") #log file name
+        logger.debug('The config_values is' + str(config_values) )
+        logger.setLevel(config_values['log'].get("log_level").upper())
+        
+        #Extract SDRID, asset class and Date from file name
+        regExCompiled = re.compile(config_values['file_name_regex'])
+        matchGroups = regExCompiled.search(config_values['file_name'] )
+        if matchGroups is not None:
+            config_values["file_dt"] = matchGroups.group('file_dt')
+            config_values['sdr_id'] = matchGroups.group('sdr_id').upper()
+            config_values['asset_class'] = matchGroups.group('asset_class').upper()
+            config_values['file_group'] = "SDROS_" + config_values['asset_class'].upper()
+        else:
+            raise Exception (f"Cannot find sdr_id, file_dt and asset_class from file name: {config_values['file_name']}, Regex: {config_values['file_name_regex']}")
+
+        #initialize config values for file audit
+        setup_config_values_for_FileAudit(config_values)
+
+        #Build step function input
+        sf_input = build_sf_input(config_values)
+        logger.debug(f"step function input completed {sf_input}. before calling statemachine." )
+        #Call statemachine    
+        sm_response = call_state_machine(config_values, sf_input, config_values['file_name'] );
+            
+    except ValueError as err:
+        logger.error('ValueError happened in mfdc_sdros_file_arrive() Lambda Function. The message is: ' + str(err));
+        raise err
+        
+    except Exception as ex:
+        template = "An exception of type {0} occurred in " + function_name + ". Arguments:\n{1!r}"
+        message = template.format(type(ex).__name__, ex.args)
+        logger.error(message);
+        raise ex 
+
+########################################################################################################################
+### Function: Get Config values from DynamoDB table
+### The function setup_config_values_from_dynamoDB is called from lambda_handler. 
+########################################################################################################################
+def setup_config_values_from_dynamoDB(config_table, app_name):
+    config_values = None
+    response_payload = None
+    logger.debug(f"Reading from DynamoDB: config_table - {config_table} app_name - {app_name}" )
+
+    dynamoDB = boto3.resource('dynamodb',region_name='us-east-1')
+    config_table = dynamoDB.Table(config_table)
+    response_payload = config_table.get_item(Key={'application_name': app_name})
+    logger.debug("Response from Dynamo: {}" + str(response_payload))
+    config_values = response_payload['Item']
+    config_values['app_name'] = app_name
+    
+    return config_values
+
+########################################################################################################################
+### Function: Initialize configuration for file audit
+### The function setup_config_values_for_FileAudit is called from lambda_handler after getting configurations from DynamoDB 
+########################################################################################################################    
+def setup_config_values_for_FileAudit(config_values):
+    #Setup fle audit configuraion values
+    file_audit = {}
+    log_parms = {}
+    # Get parent file ID
+    file_audit["file_path"] =  f"{config_values['file_bucket']}/{config_values['file_key'].rsplit('/',1)[0]}"
+    file_audit["file_name"] =  config_values['file_key'].rsplit('/',1)[-1]
+    file_audit["process_step"] = "STAGE"
+    file_audit["data_stream"] = "SDR"
+    file_audit["sub_data_stream"] = f"{config_values['sdr_id']}_{config_values['asset_class']}"
+    file_audit["action"] = "insert"
+    file_audit['loader'] = "SDR 2.0"
+    log_parms["file_audit"] = file_audit
+    config_values["LogParams"] = log_parms
+    config_values['ParentFileId'] = getAuditId( config_values["LogParams"])
+
+
+    # Get processing file ID
+    fileElements = config_values['processing_file'].rsplit('/',1)
+    file_audit["file_name"] =  fileElements[1]
+    file_audit["file_path"] = fileElements[0]
+    file_audit["parent_file_id"] = config_values['ParentFileId']
+    log_parms["file_audit"] = file_audit
+    config_values["LogParams"] = log_parms
+    print(config_values["LogParams"])
+    config_values['auditID'] = getAuditId( config_values["LogParams"])
+    
+    return config_values
+
+########################################################################################################################
+### Function: getAuditId
+###     parm1: source_file - File being processed 
+### Returns: audit Id for the file
+########################################################################################################################
+def getAuditId(fileAuditConfig):
+    logger.debug (f"fileAuditConfig - {fileAuditConfig}")
+    #Call lambda for new FileID
+    lambdaWraper = boto3.client('lambda')
+    lambdaPayload = fileAuditConfig
+    logger.debug (f"lambdaPayload - {json.dumps(lambdaPayload)}")
+    response = lambdaWraper.invoke(FunctionName = 'mfdc_file_audit', InvocationType='RequestResponse',  Payload = json.dumps(lambdaPayload))
+    logger.debug (f"response {response}")
+    fileId = ""
+    if 'Payload' in response:
+        response = json.loads(response["Payload"].read().decode("utf-8"))
+        fileId = response["file_id"]
+    else:
+        raise ValueError("Unable to generate FileID. Cannot continue file load.");
+
+    return fileId
+########################################################################################################################
+### Function: Get value from a given dictionary and throw value error if not found.
+########################################################################################################################
+def verify_and_get_dict_value(function_name, dict_of_values, data_key, is_required_field):
+    value_error = False
+    value = ''
+    errorMsg = ''
+
+    if data_key in dict_of_values:
+        value = dict_of_values[data_key]
+        if ( value is None or len(value) == 0 ) and is_required_field == True:
+            errorMsg = "ValueError happened in " + function_name + ". No data was found for Key: " + data_key + " in the dictionary. "
+            value_error = True
+    else:
+        if is_required_field == True:
+            errorMsg = "Key " + data_key + " not found in the dictionary. " 
+            value_error = True    
+
+    if value_error == True and is_required_field == True:
+        logger.debug(errorMsg)
+        raise ValueError(errorMsg)
+
+    return value
+
+
+########################################################################################################################
+### Function: Builds the step function input json.
+### Collecs all config values builds a dictionary with all the relevant info need to be passed to the step function.
+########################################################################################################################gz
+def build_sf_input(config_values):
+    logger.debug(f"Config values - {config_values}")
+    source_file = f"{config_values['file_bucket']}/{config_values['file_key']}"
+    
+    sf_values = {}
+
+    sf_values["SourceBucket"] = config_values['file_bucket']
+    sf_values["SourceKey"] = config_values['file_key']
+    sf_values["SourceBucketWithKey"] = source_file 
+    sf_values["StagingBucket"] = config_values["bucket_info"]["staging_bucket"]
+    sf_values["StagingKey"] = f"{config_values['bucket_info']['staging_key_prefix']}{config_values['file_name'].upper().replace('.zip', '.gz')}"
+    sf_values["ArchiveBucket"] = config_values["bucket_info"]["archive_bucket"]
+    sf_values["ArchiveKey"] = f"{config_values['bucket_info']['archive_key_prefix']}{config_values['file_name']}"
+    
+    sf_values["LogLevel"] = config_values['log'].get("log_level").upper()
+    sf_values["FileName"] = config_values['file_name']
+    
+    sf_values["HeaderBuffer"] = config_values['header_buffer']
+    
+    sf_values["LambdaFunctions"] = {
+        "BuildSnsMsg":config_values["lambda_functions"]["build_sns_msg"],
+        "ExecuteRsCommand":config_values["lambda_functions"]["execute_rs_command"],
+        "SendTaskResult":config_values["lambda_functions"]["send_task_result"],
+        "ConvertToJson": config_values["lambda_functions"]["convert_to_json"],
+        "LogAudit":  config_values["lambda_functions"]["file_audit"],
+        "RecCheckLambda":  config_values["lambda_functions"]["rec_check_lambda"],
+        "CreateRedshiftQueries":  config_values["lambda_functions"]["create_redshift_queries"]
+    }
+    
+    sf_values["SuccessBody"] = config_values["notifications"]["success"]["body"]
+    sf_values["SuccessSubject"] = config_values["notifications"]["success"]["subject"]
+    sf_values["FailureBody"] = config_values["notifications"]["failure"]["body"]
+    sf_values["FailureSubject"] = config_values["notifications"]["failure"]["subject"]
+    sf_values["NotificationArn"] = config_values["notifications"]["notification_arn"]
+    
+    sf_values['Batch'] = {
+        "JobQueue" : config_values["batch"]["job_queue"],
+        "JobDefinition" : config_values["batch"]["job_definition"],
+        "SourceFile" : f"s3://{source_file}",
+        "OutputFile" : config_values['processing_file'],
+        "AuditId" : config_values["auditID"] 
+    }
+
+    sf_values['LogParams']= config_values["LogParams"]
+
+    sf_values["FileDt"] =    config_values["file_dt"] 
+    sf_values["SdrId"] =    config_values['sdr_id'] 
+    sf_values["AssetClass"] =    config_values['asset_class']
+    sf_values["FileGroup"] =    config_values['file_group']
+    logger.debug("Step Function Input: {}" + str(sf_values))
+    
+    return sf_values
+
+########################################################################################################################
+### Function: Call the State Machine 
+########################################################################################################################
+def call_state_machine(config_values, sm_input,file_name): 
+    loader_arn = config_values["step_functions"]["loader_arn"]
+    
+    current_time_str = datetime.now().strftime("%H_%M_%S")
+    sm_name = file_name + '_' + current_time_str
+    sm_name = sm_name.replace('.', '_')
+
+    logger.debug('The sm_name is : ' + str(sm_name))
+
+    stepFun_client = boto3.client("stepfunctions")
+
+    logger.debug('Right BEFORE calling the State Machine with the ARN of: ' + str(loader_arn))
+
+    response = stepFun_client.start_execution(stateMachineArn=loader_arn,
+                    name=sm_name,
+                    input=json.dumps(sm_input))
+
+    logger.debug('Right AFTER calling the State Machine')
+
+    #Sanitize the statemachine response to turn the dates into strings
+    response = json.loads(json.dumps(response,default=str))
+    logger.debug("State Machine Response was: {}".format(response))
+    return response
+
+
+
+##############
