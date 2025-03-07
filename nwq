@@ -1,0 +1,127 @@
+import boto3
+import os
+import tempfile
+import traceback
+import gnupg  # Import the python-gnupg library
+import subprocess
+
+# Initialize AWS clients outside the handler for reuse
+s3 = boto3.client("s3")
+secrets_manager = boto3.client("secretsmanager")
+
+def get_secret(secret_name):
+    """Retrieve a secret from AWS Secrets Manager."""
+    response = secrets_manager.get_secret_value(SecretId=secret_name)
+    if "SecretString" in response:
+        return response["SecretString"]
+    else:
+        raise ValueError("SecretString not found in Secrets Manager response")
+
+def list_s3_files(bucket_name, prefix):
+    """List all PGP files in the specified S3 folder."""
+    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+    if "Contents" in response:
+        return [obj["Key"] for obj in response["Contents"] if obj["Key"].endswith(".pgp")]
+    return []
+
+def download_s3_file(bucket_name, s3_key, local_path):
+    """Download a file from S3 to a local path."""
+    print(f"Downloading {s3_key} from S3 bucket {bucket_name}")
+    s3.download_file(bucket_name, s3_key, local_path)
+
+def upload_s3_file(local_path, bucket_name, s3_key):
+    """Upload a file from local storage to S3."""
+    if os.path.exists(local_path) and os.stat(local_path).st_size > 0:
+        print(f"Uploading decrypted file {local_path} to s3://{bucket_name}/{s3_key}")
+        s3.upload_file(local_path, bucket_name, s3_key)
+    else:
+        print(f"File {local_path} is missing or empty. Skipping upload.")
+
+def decrypt_pgp_file(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
+    """Decrypts a PGP file using `python-gnupg`."""
+    try:
+        # Initialize GPG with the custom binary path
+        gpg = gnupg.GPG(gpgbinary="/opt/gnupg/bin/gpg")
+
+        # Import the private key
+        import_result = gpg.import_keys(private_key_data)
+        if not import_result.fingerprints:
+            raise ValueError("Failed to import private key")
+
+        # Decrypt the file
+        with open(encrypted_file_path, "rb") as f:
+            decrypted_data = gpg.decrypt_file(f, passphrase=passphrase, output=decrypted_file_path)
+
+        if decrypted_data.ok:
+            print(f"Decryption successful: {decrypted_file_path}")
+            return True
+        else:
+            print(f"Decryption failed: {decrypted_data.stderr}")
+            return False
+    except Exception as e:
+        print(f"Decryption failed: {str(e)}")
+        traceback.print_exc()  # Print detailed traceback for debugging
+        return False
+
+def lambda_handler(event, context):
+    """Lambda function handler."""
+    # Verify GnuPG version
+    result = subprocess.run(["/opt/gnupg/bin/gpg", "--version"], capture_output=True, text=True)
+    print("GnuPG Version:")
+    print(result.stdout)
+
+    # S3 bucket name
+    s3_bucket = "pseg-dlsmartopsdev-cda-raw"
+
+    # Folder containing encrypted files in S3
+    encrypted_folder = "radius/"
+
+    # Folder where decrypted files will be stored
+    decrypted_folder = "decrypted-radius/"
+
+    # Define secret_name before using it
+    secret_name = 'dev/cda/radius0305'
+
+    # Retrieve PGP private key and passphrase from AWS Secrets Manager
+    pgp_private_key = get_secret(secret_name)
+    passphrase = 'cdaradius0305'
+    print(f"Retrieved PGP private key from Secrets Manager: {pgp_private_key}")
+
+    # List all .pgp files in the folder
+    pgp_files = list_s3_files(s3_bucket, encrypted_folder)
+
+    print(f"Found {len(pgp_files)} encrypted files in S3: {pgp_files}")
+
+    if not pgp_files:
+        print("No PGP files found in the folder.")
+        return {
+            "statusCode": 200,
+            "body": "No PGP files found in the folder."
+        }
+
+    # Process each encrypted file
+    for s3_encrypted_key in pgp_files:
+        file_name = os.path.basename(s3_encrypted_key)  # Get original filename
+        decrypted_file_name = file_name.replace(".pgp", "")  # Remove .pgp extension
+        s3_decrypted_key = f"{decrypted_folder}{decrypted_file_name}"
+
+        # Temp file paths
+        temp_dir = "/tmp"
+        encrypted_local_path = os.path.join(temp_dir, file_name)
+        decrypted_local_path = os.path.join(temp_dir, decrypted_file_name)
+
+        # Download encrypted file from S3
+        download_s3_file(s3_bucket, s3_encrypted_key, encrypted_local_path)
+
+        # Decrypt the file
+        success = decrypt_pgp_file(encrypted_local_path, decrypted_local_path, pgp_private_key, passphrase)
+
+        if success:
+            # Upload decrypted file back to S3
+            upload_s3_file(decrypted_local_path, s3_bucket, s3_decrypted_key)
+            print(f"Decrypted file uploaded to: s3://{s3_bucket}/{s3_decrypted_key}")
+
+    return {
+        "statusCode": 200,
+        "body": "Decryption process completed."
+    }
