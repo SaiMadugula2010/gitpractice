@@ -2,7 +2,8 @@ import boto3
 import os
 import tempfile
 import base64
-import pgpy  # PGP library
+import pgpy  # PGP decryption library
+import gnupg  # Alternative GPG library
 
 # AWS Clients
 s3 = boto3.client("s3")
@@ -10,13 +11,13 @@ secrets_manager = boto3.client("secretsmanager")
 
 
 def get_secret(secret_name):
-    """Retrieve a secret (PGP private key) from AWS Secrets Manager."""
+    """Retrieve the PGP private key from AWS Secrets Manager."""
     response = secrets_manager.get_secret_value(SecretId=secret_name)
 
     if "SecretString" in response:
         secret_value = response["SecretString"]
 
-        # Check if it's base64 encoded
+        # Decode Base64 if necessary
         if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in secret_value:
             try:
                 secret_value = base64.b64decode(secret_value).decode("utf-8")
@@ -26,7 +27,7 @@ def get_secret(secret_name):
 
         # Validate private key format
         if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in secret_value:
-            raise ValueError("Invalid PGP private key format.")
+            raise ValueError("Invalid PGP private key format retrieved.")
 
         return secret_value
     else:
@@ -34,7 +35,7 @@ def get_secret(secret_name):
 
 
 def list_s3_files(bucket_name, prefix):
-    """List all .pgp files in an S3 bucket folder."""
+    """List all .pgp files in the specified S3 folder."""
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
     return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pgp")]
 
@@ -54,34 +55,55 @@ def upload_s3_file(local_path, bucket_name, s3_key):
         print(f"Skipping upload: {local_path} is empty or missing.")
 
 
-def decrypt_pgp_file(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
-    """Decrypts a PGP file using `pgpy`."""
+def decrypt_pgp_file_pgpy(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
+    """Decrypt a PGP file using `pgpy`."""
     try:
         # Load PGP private key
         private_key, _ = pgpy.PGPKey.from_blob(private_key_data)
         print("PGP private key loaded successfully.")
 
-        # Unlock the key
-        with private_key.unlock(passphrase) as unlocked_key:
-            print("PGP key unlocked successfully.")
+        if private_key.is_protected:
+            with private_key.unlock(passphrase) as unlocked_key:
+                print("PGP Key Successfully Unlocked!")
 
-            # Read encrypted file
-            with open(encrypted_file_path, "rb") as f:
-                encrypted_data = f.read()
+                # Read encrypted file in binary mode
+                with open(encrypted_file_path, "rb") as f:
+                    encrypted_data = f.read()
 
-            encrypted_message = pgpy.PGPMessage.from_blob(encrypted_data)
+                encrypted_message = pgpy.PGPMessage.from_blob(encrypted_data)
 
-            # Decrypt the message
-            decrypted_message = unlocked_key.decrypt(encrypted_message).message
+                # Decrypt the message
+                decrypted_message = unlocked_key.decrypt(encrypted_message).message
 
-            # Save decrypted content
-            with open(decrypted_file_path, "w") as f:
-                f.write(decrypted_message)
+                # Save decrypted content
+                with open(decrypted_file_path, "w") as f:
+                    f.write(decrypted_message)
 
-            print(f"Decryption successful: {decrypted_file_path}")
-            return True
+                print(f"Decryption successful: {decrypted_file_path}")
+                return True
+        else:
+            print("PGP Key is not encrypted. Proceeding without passphrase.")
+
     except Exception as e:
-        print(f"Decryption failed: {e}")
+        print(f"pgpy Decryption failed: {e}")
+        return False
+
+
+def decrypt_pgp_file_gpg(encrypted_file_path, decrypted_file_path, passphrase):
+    """Decrypt a PGP file using `gpg` (fallback method)."""
+    gpg = gnupg.GPG(gnupghome="/tmp")
+
+    with open(encrypted_file_path, "rb") as f:
+        decrypted_data = gpg.decrypt_file(f, passphrase=passphrase)
+
+    if decrypted_data.ok:
+        with open(decrypted_file_path, "w") as f:
+            f.write(str(decrypted_data))
+
+        print(f"GPG Decryption successful: {decrypted_file_path}")
+        return True
+    else:
+        print(f"GPG Decryption failed: {decrypted_data.stderr}")
         return False
 
 
@@ -120,13 +142,20 @@ def main():
         # Download encrypted file from S3
         download_s3_file(s3_bucket, s3_encrypted_key, encrypted_local_path)
 
-        # Decrypt the file
-        success = decrypt_pgp_file(encrypted_local_path, decrypted_local_path, pgp_private_key, passphrase)
+        # Attempt decryption with pgpy
+        success = decrypt_pgp_file_pgpy(encrypted_local_path, decrypted_local_path, pgp_private_key, passphrase)
 
+        # If pgpy fails, try GPG
+        if not success:
+            print("Retrying decryption with GPG...")
+            success = decrypt_pgp_file_gpg(encrypted_local_path, decrypted_local_path, passphrase)
+
+        # Upload decrypted file if successful
         if success:
-            # Upload decrypted file to S3
             upload_s3_file(decrypted_local_path, s3_bucket, s3_decrypted_key)
             print(f"Decrypted file uploaded to: s3://{s3_bucket}/{s3_decrypted_key}")
+        else:
+            print(f"Decryption failed for {file_name}")
 
 
 if __name__ == "__main__":
