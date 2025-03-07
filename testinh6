@@ -2,135 +2,101 @@ import boto3
 import os
 import tempfile
 import base64
-import pgpy  # PGP decryption library
-import gnupg  # Alternative GPG library
+import sys
+
+# Ensure AWS Glue can use the PGPY package
+# sys.path.append("/tmp/pgpy_lib/python/lib/python3.8/site-packages")
+import pgpy  # Import the PGP library
 
 # AWS Clients
 s3 = boto3.client("s3")
 secrets_manager = boto3.client("secretsmanager")
 
-
 def get_secret(secret_name):
-    """Retrieve the PGP private key from AWS Secrets Manager."""
+    """Retrieve a secret from AWS Secrets Manager."""
     response = secrets_manager.get_secret_value(SecretId=secret_name)
-
     if "SecretString" in response:
-        secret_value = response["SecretString"]
-
-        # Decode Base64 if necessary
-        if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in secret_value:
-            try:
-                secret_value = base64.b64decode(secret_value).decode("utf-8")
-                print("Decoded Base64 secret.")
-            except Exception as e:
-                print(f"Failed to decode Base64 secret: {e}")
-
-        # Validate private key format
-        if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in secret_value:
-            raise ValueError("Invalid PGP private key format retrieved.")
-
-        return secret_value
+        return response["SecretString"]
     else:
-        raise ValueError("SecretString not found in Secrets Manager response.")
-
+        raise ValueError("SecretString not found in Secrets Manager response")
 
 def list_s3_files(bucket_name, prefix):
-    """List all .pgp files in the specified S3 folder."""
+    """List all PGP files in the specified S3 folder."""
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-    return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pgp")]
-
+    if "Contents" in response:
+        return [obj["Key"] for obj in response["Contents"] if obj["Key"].endswith(".pgp")]
+    return []
 
 def download_s3_file(bucket_name, s3_key, local_path):
-    """Download a file from S3 to local storage."""
-    print(f"Downloading {s3_key} from {bucket_name}")
+    """Download a file from S3 to a local path."""
+    print(f"Downloading {s3_key} from S3 bucket {bucket_name}")
     s3.download_file(bucket_name, s3_key, local_path)
 
-
 def upload_s3_file(local_path, bucket_name, s3_key):
-    """Upload a decrypted file to S3."""
+    """Upload a file from local storage to S3."""
     if os.path.exists(local_path) and os.stat(local_path).st_size > 0:
-        print(f"Uploading {local_path} to s3://{bucket_name}/{s3_key}")
+        print(f"Uploading decrypted file {local_path} to s3://{bucket_name}/{s3_key}")
         s3.upload_file(local_path, bucket_name, s3_key)
     else:
-        print(f"Skipping upload: {local_path} is empty or missing.")
+        print(f"File {local_path} is missing or empty. Skipping upload.")
 
-
-def decrypt_pgp_file_pgpy(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
-    """Decrypt a PGP file using `pgpy`."""
+def decrypt_pgp_file(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
+    """Decrypts a PGP file using `pgpy`."""
     try:
-        # Load PGP private key
+        # Load private key
         private_key, _ = pgpy.PGPKey.from_blob(private_key_data)
-        print("PGP private key loaded successfully.")
 
-        if private_key.is_protected:
-            with private_key.unlock(passphrase) as unlocked_key:
-                print("PGP Key Successfully Unlocked!")
+        # Unlock the key with the passphrase
+        with private_key.unlock(passphrase) as unlocked_key:
+            # Read the encrypted message in binary mode
+            with open(encrypted_file_path, "rb") as f:
+                encrypted_data = f.read()
 
-                # Read encrypted file in binary mode
-                with open(encrypted_file_path, "rb") as f:
-                    encrypted_data = f.read()
+            encrypted_message = pgpy.PGPMessage.from_blob(encrypted_data)
 
-                encrypted_message = pgpy.PGPMessage.from_blob(encrypted_data)
+            # Decrypt the message
+            decrypted_message = unlocked_key.decrypt(encrypted_message).message
 
-                # Decrypt the message
-                decrypted_message = unlocked_key.decrypt(encrypted_message).message
+            # Save decrypted content
+            with open(decrypted_file_path, "w") as f:
+                f.write(decrypted_message)
 
-                # Save decrypted content
-                with open(decrypted_file_path, "w") as f:
-                    f.write(decrypted_message)
-
-                print(f"Decryption successful: {decrypted_file_path}")
-                return True
-        else:
-            print("PGP Key is not encrypted. Proceeding without passphrase.")
-
+            print(f"Decryption successful: {decrypted_file_path}")
+            return True
     except Exception as e:
-        print(f"pgpy Decryption failed: {e}")
+        print(f"Decryption failed: {str(e)}")
         return False
-
-
-def decrypt_pgp_file_gpg(encrypted_file_path, decrypted_file_path, passphrase):
-    """Decrypt a PGP file using `gpg` (fallback method)."""
-    gpg = gnupg.GPG(gnupghome="/tmp")
-
-    with open(encrypted_file_path, "rb") as f:
-        decrypted_data = gpg.decrypt_file(f, passphrase=passphrase)
-
-    if decrypted_data.ok:
-        with open(decrypted_file_path, "w") as f:
-            f.write(str(decrypted_data))
-
-        print(f"GPG Decryption successful: {decrypted_file_path}")
-        return True
-    else:
-        print(f"GPG Decryption failed: {decrypted_data.stderr}")
-        return False
-
 
 def main():
-    # S3 configuration
+    # S3 bucket name
     s3_bucket = "pseg-dlsmartopsdev-cda-raw"
+
+    # Folder containing encrypted files in S3
     encrypted_folder = "radius/"
+
+    # Folder where decrypted files will be stored
     decrypted_folder = "decrypted-radius/"
 
-    # AWS Secrets Manager Secret Name
-    secret_name = "testsai03"
+    # Define secret_name before using it
+    secret_name = 'dev/cda/radius0305'
 
-    # Retrieve PGP private key and passphrase
+    # Retrieve PGP private key and passphrase from AWS Secrets Manager
     pgp_private_key = get_secret(secret_name)
-    passphrase = "cdaradius0305"  # Ensure this is securely managed
+    passphrase = 'cdaradius0305'
+    print(pgp_private_key)
 
-    # List all PGP files in S3
+    # List all .pgp files in the folder
     pgp_files = list_s3_files(s3_bucket, encrypted_folder)
+
     print(f"Found {len(pgp_files)} encrypted files in S3: {pgp_files}")
 
     if not pgp_files:
-        print("No PGP files found. Exiting.")
+        print("No PGP files found in the folder.")
         return
 
     # Process each encrypted file
     for s3_encrypted_key in pgp_files:
-        file_name = os.path.basename(s3_encrypted_key)
+        file_name = os.path.basename(s3_encrypted_key)  # Get original filename
         decrypted_file_name = file_name.replace(".pgp", "")  # Remove .pgp extension
         s3_decrypted_key = f"{decrypted_folder}{decrypted_file_name}"
 
@@ -142,21 +108,13 @@ def main():
         # Download encrypted file from S3
         download_s3_file(s3_bucket, s3_encrypted_key, encrypted_local_path)
 
-        # Attempt decryption with pgpy
-        success = decrypt_pgp_file_pgpy(encrypted_local_path, decrypted_local_path, pgp_private_key, passphrase)
+        # Decrypt the file
+        success = decrypt_pgp_file(encrypted_local_path, decrypted_local_path, pgp_private_key, passphrase)
 
-        # If pgpy fails, try GPG
-        if not success:
-            print("Retrying decryption with GPG...")
-            success = decrypt_pgp_file_gpg(encrypted_local_path, decrypted_local_path, passphrase)
-
-        # Upload decrypted file if successful
         if success:
+            # Upload decrypted file back to S3
             upload_s3_file(decrypted_local_path, s3_bucket, s3_decrypted_key)
             print(f"Decrypted file uploaded to: s3://{s3_bucket}/{s3_decrypted_key}")
-        else:
-            print(f"Decryption failed for {file_name}")
-
 
 if __name__ == "__main__":
     main()
