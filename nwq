@@ -1,22 +1,9 @@
 import boto3
 import os
+import subprocess
+import gnupg
 import tempfile
 import traceback
-import subprocess
-import sys
-
-# Dynamically install `python-gnupg` inside AWS Lambda
-def install_package(package):
-    subprocess.check_call([sys.executable, "-m", "pip", "install", package, "--target", "/tmp"])
-    sys.path.insert(0, "/tmp")
-
-# Install python-gnupg if not available
-try:
-    import gnupg
-except ImportError:
-    print("🔹 Installing python-gnupg...")
-    install_package("python-gnupg")
-    import gnupg
 
 # AWS Clients
 s3 = boto3.client("s3")
@@ -28,16 +15,16 @@ def get_secret(secret_name):
     if "SecretString" in response:
         return response["SecretString"]
     else:
-        raise ValueError("SecretString not found in Secrets Manager response")
+        raise ValueError("SecretString not found in Secrets Manager response.")
 
 def list_s3_files(bucket_name, prefix):
-    """List all .pgp files in the specified S3 folder."""
+    """List all .pgp files in an S3 folder."""
     response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
     return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pgp")] if "Contents" in response else []
 
 def download_s3_file(bucket_name, s3_key, local_path):
     """Download a file from S3 to a local path."""
-    print(f"⬇️ Downloading {s3_key} from S3 bucket {bucket_name}")
+    print(f"⬇️ Downloading {s3_key} from {bucket_name}")
     s3.download_file(bucket_name, s3_key, local_path)
 
 def upload_s3_file(local_path, bucket_name, s3_key):
@@ -49,7 +36,7 @@ def upload_s3_file(local_path, bucket_name, s3_key):
         print(f"⚠️ Skipping upload: {local_path} is empty or missing.")
 
 def decrypt_pgp_file(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
-    """Decrypts a PGP file using `python-gnupg`."""
+    """Decrypts a PGP file using GnuPG."""
     try:
         # Ensure GPG binary path is correct
         gpg = gnupg.GPG(gpgbinary="/opt/bin/gpg")
