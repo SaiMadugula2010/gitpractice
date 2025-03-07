@@ -124,3 +124,25 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+Traceback (most recent call last):
+  File "/tmp/cda-test-job-sai.py", line 58, in decrypt_pgp_file
+    encrypted_message = pgpy.PGPMessage.from_blob(encrypted_data)
+  File "/home/spark/.local/lib/python3.10/site-packages/pgpy/types.py", line 198, in from_blob
+    po = obj.parse(bytearray(blob))
+  File "/home/spark/.local/lib/python3.10/site-packages/pgpy/pgp.py", line 1293, in parse
+    self |= Packet(data)
+  File "/home/spark/.local/lib/python3.10/site-packages/pgpy/pgp.py", line 1080, in __or__
+    raise NotImplementedError(str(type(other)))
+
+
+
+
+NotImplementedError: <class 'pgpy.packet.types.Opaque'>
