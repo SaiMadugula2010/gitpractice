@@ -1,8 +1,6 @@
 import boto3
 import os
 import subprocess
-import gnupg
-import tempfile
 import traceback
 
 # AWS Clients
@@ -11,55 +9,83 @@ secrets_manager = boto3.client("secretsmanager")
 
 def get_secret(secret_name):
     """Retrieve a secret from AWS Secrets Manager."""
-    response = secrets_manager.get_secret_value(SecretId=secret_name)
-    if "SecretString" in response:
-        return response["SecretString"]
-    else:
-        raise ValueError("SecretString not found in Secrets Manager response.")
+    try:
+        response = secrets_manager.get_secret_value(SecretId=secret_name)
+        if "SecretString" in response:
+            return response["SecretString"]
+        else:
+            raise ValueError("SecretString not found in Secrets Manager response.")
+    except Exception as e:
+        print(f"❌ ERROR: Unable to fetch secret '{secret_name}': {str(e)}")
+        return None
 
 def list_s3_files(bucket_name, prefix):
     """List all .pgp files in an S3 folder."""
-    response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
-    return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pgp")] if "Contents" in response else []
+    try:
+        response = s3.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+        return [obj["Key"] for obj in response.get("Contents", []) if obj["Key"].endswith(".pgp")] if "Contents" in response else []
+    except Exception as e:
+        print(f"❌ ERROR: Unable to list files in S3 bucket '{bucket_name}': {str(e)}")
+        return []
 
 def download_s3_file(bucket_name, s3_key, local_path):
     """Download a file from S3 to a local path."""
-    print(f"⬇️ Downloading {s3_key} from {bucket_name}")
-    s3.download_file(bucket_name, s3_key, local_path)
+    try:
+        print(f"⬇️ Downloading {s3_key} from {bucket_name}")
+        s3.download_file(bucket_name, s3_key, local_path)
+    except Exception as e:
+        print(f"❌ ERROR: Unable to download '{s3_key}': {str(e)}")
 
 def upload_s3_file(local_path, bucket_name, s3_key):
     """Upload a decrypted file back to S3."""
-    if os.path.exists(local_path) and os.stat(local_path).st_size > 0:
-        print(f"⬆️ Uploading {local_path} to s3://{bucket_name}/{s3_key}")
-        s3.upload_file(local_path, bucket_name, s3_key)
-    else:
-        print(f"⚠️ Skipping upload: {local_path} is empty or missing.")
+    try:
+        if os.path.exists(local_path) and os.stat(local_path).st_size > 0:
+            print(f"⬆️ Uploading {local_path} to s3://{bucket_name}/{s3_key}")
+            s3.upload_file(local_path, bucket_name, s3_key)
+        else:
+            print(f"⚠️ Skipping upload: {local_path} is empty or missing.")
+    except Exception as e:
+        print(f"❌ ERROR: Unable to upload '{local_path}': {str(e)}")
 
 def decrypt_pgp_file(encrypted_file_path, decrypted_file_path, private_key_data, passphrase):
-    """Decrypts a PGP file using GnuPG."""
+    """Decrypts a PGP file using GnuPG via subprocess."""
     try:
-        # Ensure GPG binary path is correct
-        gpg = gnupg.GPG(gpgbinary="/opt/bin/gpg")
+        gpg_path = "/opt/bin/gpg"  # Ensure GPG is in the correct path
 
         # Import the private key
-        import_result = gpg.import_keys(private_key_data)
-        if not import_result.fingerprints:
-            raise ValueError("❌ ERROR: Failed to import PGP private key.")
+        import_process = subprocess.run(
+            [gpg_path, "--import"],
+            input=private_key_data,
+            text=True,
+            capture_output=True
+        )
 
-        print(f"🔑 Imported PGP key: {import_result.fingerprints}")
+        if import_process.returncode != 0:
+            print(f"❌ ERROR: Failed to import PGP private key: {import_process.stderr}")
+            return False
 
-        # Decrypt the file
-        with open(encrypted_file_path, "rb") as f:
-            decrypted_data = gpg.decrypt_file(f, passphrase=passphrase, output=decrypted_file_path)
+        print(f"🔑 PGP key imported successfully.")
 
-        if decrypted_data.ok:
+        # Decrypt the file using subprocess
+        with open(decrypted_file_path, "wb") as output_file:
+            decrypt_process = subprocess.run(
+                [
+                    gpg_path, "--batch", "--yes", "--pinentry-mode", "loopback",
+                    "--passphrase", passphrase, "--output", decrypted_file_path,
+                    "--decrypt", encrypted_file_path
+                ],
+                capture_output=True
+            )
+
+        if decrypt_process.returncode == 0:
             print(f"✅ Decryption successful: {decrypted_file_path}")
             return True
         else:
-            print(f"❌ Decryption failed: {decrypted_data.stderr}")
+            print(f"❌ ERROR: Decryption failed: {decrypt_process.stderr}")
             return False
+
     except Exception as e:
-        print(f"❌ Error during decryption: {str(e)}")
+        print(f"❌ ERROR during decryption: {str(e)}")
         traceback.print_exc()
         return False
 
@@ -83,6 +109,9 @@ def lambda_handler(event, context):
 
     # Retrieve PGP private key
     pgp_private_key = get_secret(secret_name)
+    if not pgp_private_key:
+        return {"statusCode": 500, "body": "Failed to retrieve PGP key from Secrets Manager."}
+
     passphrase = "cdaradius0305"
 
     # List all encrypted PGP files
@@ -94,14 +123,15 @@ def lambda_handler(event, context):
         print("⚠️ No PGP files found.")
         return {"statusCode": 200, "body": "No PGP files found in S3."}
 
+    # Use Lambda /tmp directory for temporary files
+    temp_dir = "/tmp"
+
     # Process each encrypted file
     for s3_encrypted_key in pgp_files:
         file_name = os.path.basename(s3_encrypted_key)
         decrypted_file_name = file_name.replace(".pgp", "")
         s3_decrypted_key = f"{decrypted_folder}{decrypted_file_name}"
 
-        # Use Lambda /tmp directory for temporary files
-        temp_dir = "/tmp"
         encrypted_local_path = os.path.join(temp_dir, file_name)
         decrypted_local_path = os.path.join(temp_dir, decrypted_file_name)
 
@@ -122,5 +152,12 @@ def lambda_handler(event, context):
         except Exception as e:
             print(f"❌ ERROR processing {file_name}: {str(e)}")
             traceback.print_exc()
+
+        # Cleanup temp files
+        try:
+            os.remove(encrypted_local_path)
+            os.remove(decrypted_local_path)
+        except Exception:
+            pass  # Ignore errors if files don't exist
 
     return {"statusCode": 200, "body": "PGP decryption process completed successfully."}
