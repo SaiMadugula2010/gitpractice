@@ -1510,3 +1510,128 @@ Outputs:
             - - !Ref DeploymentOrganization
               - !Ref AWS::AccountId
               - !Ref S3BucketSuffix
+
+
+#####################
+
+
+
+
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  CloudFormation template that provisions an S3 bucket with encryption, 
+  lifecycle policies, and optional IAM role-based access control if the bucket 
+  is used for PII data.
+
+Metadata:
+  TemplateVersion:
+    Description: '2.0'
+  LastUpdate:
+    Description: '2025-03-20'
+  LastUpdatedBy:
+    Description: 'YourName'
+
+Parameters:
+  IsPIIBucket:
+    Type: String
+    Default: "No"
+    AllowedValues: ["Yes", "No"]
+    Description: "Set to 'Yes' if this is a PII bucket, restricting access to specific IAM roles."
+
+  AllowedIAMRoles:
+    Type: List<String>
+    Description: "List of IAM roles allowed to access the S3 bucket if it is a PII bucket (Min: 1, Max: 10)."
+    MinLength: 1
+    MaxLength: 10
+
+  S3BucketPrefix:
+    Type: String
+    AllowedPattern: ^(pseg-|psegli-|pseggovcloud-)[a-zA-Z0-9_]*$
+    Description: "Specify the prefix for the S3 bucket name."
+
+  S3BucketSuffix:
+    Type: String
+    AllowedPattern: ^[a-zA-Z0-9_-]*$
+    Description: "Specify the suffix for the S3 bucket name."
+
+  KMSKey:
+    Type: String
+    AllowedPattern: ^arn:(aws|aws-us-gov):kms:[a-z0-9\\-]*:[0-9]{12}:key\/[a-z0-9\-]{36}$
+    Description: "Enter a KMS ARN for encryption."
+
+Conditions:
+  IsPIIBucketYes: !Equals [ !Ref IsPIIBucket, "Yes" ]
+
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join 
+        - '-'
+        - - !Ref S3BucketPrefix
+          - !Ref S3BucketSuffix
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              KMSMasterKeyID: !Ref KMSKey
+              SSEAlgorithm: aws:kms
+      Tags:
+        - Key: Name
+          Value: !Join
+            - '-'
+            - - !Ref S3BucketPrefix
+              - !Ref S3BucketSuffix
+        - Key: environment
+          Value: "production"
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Id: BucketPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Effect: Deny
+            Action: s3:*
+            Principal: '*'
+            Resource:
+              - !Sub "arn:aws:s3:::${S3Bucket}"
+              - !Sub "arn:aws:s3:::${S3Bucket}/*"
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+
+          - !If
+            - IsPIIBucketYes
+            - Sid: AllowSpecificIAMRolesForPIIBucket
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+                - s3:ListBucket
+              Principal:
+                AWS: 
+                  !Join 
+                    - ""
+                    - - "arn:aws:iam::${AWS::AccountId}:role/"
+                    - !Join 
+                        - '", "arn:aws:iam::${AWS::AccountId}:role/'
+                        - !Ref AllowedIAMRoles
+              Resource:
+                - !Sub "arn:aws:s3:::${S3Bucket}"
+                - !Sub "arn:aws:s3:::${S3Bucket}/*"
+            - !Ref AWS::NoValue
+
+Outputs:
+  S3BucketArn:
+    Value: !GetAtt S3Bucket.Arn
+    Description: "ARN of the S3 bucket."
+
+  S3BucketName:
+    Value: !Ref S3Bucket
+    Description: "Name of the S3 bucket."
+
+
+
