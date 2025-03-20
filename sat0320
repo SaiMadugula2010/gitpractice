@@ -1,0 +1,1512 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: This is a template that describes an S3 bucket with default
+  encryption enabled. It also gives the option to attach a lifecycle policy to
+  the bucket to delete content after a specified number of days.  (c) 2018
+  Public Service Enterprise Group Incorporated. All rights reserved.
+Metadata:
+  TemplateVersion:
+    Description: '2.0'
+  LastUpdate:
+    Description: '2019-11-04'
+  LastUpdatedBy:
+    Description: C90208616
+  Documentation:
+    Description: https://sharepoint.pseg.com/sites/CFIT/IT_Projects/CCoE/General/s3-bucket.yml.docx
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: Bucket Name Details
+        Parameters:
+          - S3BucketPrefix
+          - S3BucketSuffix
+      - Label:
+          default: Bucket scope
+        Parameters:
+          - AccountScope
+      - Label:
+          default: Deployment Type
+        Parameters:
+          - DeploymentMethod
+          - DeploymentOrganization
+      - Label:
+          default: Lifecycle Policies
+        Parameters:
+          - RetentionPolicyFlag
+          - RetentionPolicyDays
+          - TransitionToIntelligentTieringFlag
+          - TransitionToGlacierFlag
+          - TransitionToGlacierDays
+      - Label:
+          default: Versioning Options
+        Parameters:
+          - VersioningConfiguration
+          - ExpireNoncurrentVersionsFlag
+          - ExpireNoncurrentVersionsDays
+      - Label:
+          default: Cross-Region Replication Bucket Settings
+        Parameters:
+          - CRRBucketType
+          - CRROtherAccount
+      - Label:
+          default: KMS key details
+        Parameters:
+          - KMSKey
+      - Label:
+          default: Organization Bucket Details
+        Parameters:
+          - OrganizationId
+      - Label:
+          default: If scope is multi-account or cloudtrail, account id that bucket may be
+            used/accessed from
+        Parameters:
+          - Account01
+          - Account02
+          - Account03
+          - Account04
+          - Account05
+          - Account06
+          - Account07
+          - Account08
+          - Account09
+          - Account10
+          - Account11
+          - Account12
+          - Account13
+          - Account14
+          - Account15
+      - Label:
+          default: Export Details
+        Parameters:
+          - ExportFlag
+          - ExportName
+      - Label:
+          default: Tag Details
+        Parameters:
+          - TagApplication
+          - TagDescription
+          - TagEnvironment
+          - TagWBSStandingOrder
+    ParameterLabels:
+      Account01:
+        default: 'Optional: Account ID #01.'
+      Account02:
+        default: 'Optional: Account ID #02.'
+      Account03:
+        default: 'Optional: Account ID #03.'
+      Account04:
+        default: 'Optional: Account ID #04.'
+      Account05:
+        default: 'Optional: Account ID #05.'
+      Account06:
+        default: 'Optional: Account ID #06.'
+      Account07:
+        default: 'Optional: Account ID #07.'
+      Account08:
+        default: 'Optional: Account ID #08.'
+      Account09:
+        default: 'Optional: Account ID #09.'
+      Account10:
+        default: 'Optional: Account ID #10.'
+      Account11:
+        default: 'Optional: Account ID #11.'
+      Account12:
+        default: 'Optional: Account ID #12.'
+      Account13:
+        default: 'Optional: Account ID #13.'
+      Account14:
+        default: 'Optional: Account ID #14.'
+      Account15:
+        default: 'Optional: Account ID #15.'
+      AccountScope:
+        default: Bucket Type
+      CRRBucketType:
+        default: 'Optional: CRR Bucket Type'
+      CRROtherAccount:
+        default: 'Optional: CRR Other Account'
+      DeploymentMethod:
+        default: Type of deployment for S3 bucket
+      DeploymentOrganization:
+        default: Organization for S3 bucket deployment
+      ExpireNoncurrentVersionsFlag:
+        default: Expire Noncurrent Versions enabled
+      ExpireNoncurrentVersionsDays:
+        default: Expire Noncurrent Versions days
+      ExportFlag:
+        default: Export enabled
+      ExportName:
+        default: Export Name
+      KMSKey:
+        default: KMS Key Arn
+      OrganizationId:
+        default: Organization ID
+      RetentionPolicyFlag:
+        default: Retention enabled
+      RetentionPolicyDays:
+        default: Retention days
+      S3BucketPrefix:
+        default: S3 Bucket Prefix
+      S3BucketSuffix:
+        default: S3 Bucket Suffix
+      TagApplication:
+        default: Application
+      TagDescription:
+        default: Description
+      TagEnvironment:
+        default: Environment
+      TagWBSStandingOrder:
+        default: WBS/Standing Order
+      TransitionToGlacierFlag:
+        default: Glacier Transition enabled
+      TransitionToGlacierDays:
+        default: Glacier Transition days
+      TransitionToIntelligentTieringFlag:
+        default: Intelligent Tier Transition enabled
+      VersioningConfiguration:
+        default: Versioning Enabled
+Parameters:
+  AccountScope:
+    AllowedValues:
+      - multi-account
+      - local
+      - crr
+      - cloudtrail
+      - organization
+      - flowlog
+      - config
+    ConstraintDescription: must be a valid selection.
+    Default: local
+    Description: What kind of bucket will this be?  The option selected
+      will  dictate the bucket policy created.
+    Type: String
+  Account01:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account02:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account03:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account04:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account05:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account06:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account07:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account08:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account09:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account10:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account11:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account12:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account13:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account14:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  Account15:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If this will be a multi-account or cloudtrail bucket, please
+      specify  the ID of the other account that will be allowed to use this
+      bucket.   Otherwise, leave the value for this field empty.  If a value is
+      entererd here for any other type of bucket the value here will be ignored.
+    NoEcho: 'false'
+    Type: String
+  CRRBucketType:
+    AllowedValues:
+      - N/A
+      - Source
+      - Destination
+    Default: N/A
+    Description: Select if this will be a source or destination CRR bucket
+    Type: String
+  CRROtherAccount:
+    AllowedPattern: ([0-9]{12}){0,1}
+    ConstraintDescription: please specify a valid AWS account ID.
+    Description: If 'CRR' was selected for the account scope, what is the account
+      number of the other account.
+    NoEcho: 'false'
+    Type: String
+  DeploymentMethod:
+    Description: How is the template being deployed (standard for single account;
+      stackset for multi-account)
+    Type: String
+    Default: standard
+    AllowedValues:
+      - standard
+      - stackset
+  DeploymentOrganization:
+    Description: The organization for deployment; only used for stackset deployment.
+      This will be used to build the bucket name
+    Type: String
+    AllowedValues:
+      - pseg
+      - psegli
+      - pseggovcloud
+  ExpireNoncurrentVersionsFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    ConstraintDescription: must be a valid selection.
+    Default: 'Yes'
+    Description: Whether to expire noncurrent versions on this bucket.
+    Type: String
+  ExpireNoncurrentVersionsDays:
+    AllowedValues:
+      - '1'
+      - '7'
+      - '14'
+      - '30'
+      - '60'
+      - '90'
+      - '180'
+      - '365'
+    Default: '30'
+    Description: 'Optional: If ''Expire Noncurrent Versions enabled'' is set to
+      ''Yes'', noncurrent versions in this bucket will be removed after the
+      number of days specified.'
+    Type: String
+  ExportFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    ConstraintDescription: must be a valid selection.
+    Default: 'No'
+    Description: Whether to enable export of bucket name on this bucket.
+    Type: String
+  ExportName:
+    Description: 'Optional: If Export enabled is true then specify an export name
+      for the bucket name. If left blank will automatically generate name for
+      you.'
+    Type: String
+  KMSKey:
+    AllowedPattern: ^arn:(aws|aws-us-gov):kms:[a-z0-9\\-]*:[0-9]{12}:key\/[a-z0-9\-]{36}$
+    ConstraintDescription: Please specify a KMS key ARN
+    Description: Enter a single KMS ARNs that will be used to encrypt data in the S3
+    Type: String
+  OrganizationId:
+    Description: The id of the organization if Bucket Type is organization or flowlog
+    Type: String
+  RetentionPolicyFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    ConstraintDescription: must be a valid selection.
+    Default: 'No'
+    Description: Whether to apply a retention policy on this bucket.
+    Type: String
+  RetentionPolicyDays:
+    AllowedValues:
+      - '1'
+      - '7'
+      - '14'
+      - '30'
+      - '60'
+      - '90'
+      - '180'
+      - '365'
+    Default: '1'
+    Description: 'Optional: If ''Retention enabled'' is set to ''Yes'', objects in
+      this bucket will expire after the number of days specified.'
+    Type: String
+  S3BucketPrefix:
+    Type: String
+    AllowedPattern: ^(pseg-|psegli-|pseggovcloud-)[a-zA-Z0-9_]*$
+    ConstraintDescription: please specify the prefix with only lower case
+      alphanumberic characters, underscores or dashes.  the prefix of the bucket
+      must start with 'pseg-', 'psegli-' or 'pseggovcloud-' followed by the
+      account alias.  e.g.  pseg-sandbox or psegli-sandbox
+    Description: specify the prefix with only lower case alphanumberic characters,
+      underscores or dashes.  the prefix of the bucket must start with 'pseg-'
+      'psegli-' or 'pseggovcloud-' followed by the account
+      alias.  e.g.  pseg-sandbox or psegli-sandbox
+  S3BucketSuffix:
+    Type: String
+    AllowedPattern: ^[a-zA-Z0-9_-]*$
+    ConstraintDescription: 'please specify the suffix with only lower case
+      alphanumberic characters, hypens or underscores. '
+    Description: 'specify the suffix with only lower case alphanumberic characters,
+      hypens or underscores. '
+  TagApplication:
+    Type: String
+    AllowedPattern: ^[A-Za-z0-9- ]*$
+    ConstraintDescription: please specify the value of the application tag with only
+      alphanumberic characters, dashes or spaces
+  TagDescription:
+    Type: String
+    AllowedPattern: ^[A-Za-z0-9- ]*$
+    ConstraintDescription: 'please specify the value of the description tag with
+      only alphanumberic characters, dashes or spaces  '
+  TagEnvironment:
+    Type: String
+    AllowedValues:
+      - Prod
+      - Dev
+      - NonProd
+      - Qa
+      - Test
+  PIIFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    Default: 'No'
+    Description: Whether PII or nonPII, Sol IAM role are adjusted accordingly
+    Type: String
+  TagWBSStandingOrder:
+    Type: String
+  TransitionToGlacierFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    ConstraintDescription: must be a valid selection.
+    Default: 'No'
+    Description: Whether to transition objects to glacier
+    Type: String
+  TransitionToGlacierDays:
+    AllowedValues:
+      - '30'
+      - '60'
+      - '90'
+      - '180'
+      - '365'
+    Default: '60'
+    Description: The number of days before transitioning to glacier.
+    Type: String
+  TransitionToIntelligentTieringFlag:
+    AllowedValues:
+      - 'No'
+      - 'Yes'
+    ConstraintDescription: must be a valid selection.
+    Default: 'Yes'
+    Description: Whether to enable transitioning to intelligent tiering on this bucket.
+    Type: String
+  VersioningConfiguration:
+    AllowedValues:
+      - Suspended
+      - Enabled
+    ConstraintDescription: must be a valid selection.
+    Default: Suspended
+    Description: Whether to enable versioning on this bucket.  Note, that once
+      versioning is enabled on a bucket it cannot be disabled, only suspended.
+      Versioning is set to 'Enabled' during bucket creation and update if this
+      is a CRR bucket regardless of the option selected here.
+    Type: String
+Mappings:
+  EnvToLower:
+    Dev:
+      value: dev
+    NonProd:
+      value: nonprod
+    Prod:
+      value: prod
+    Qa:
+      value: qa
+    Test:
+      value: test
+Conditions:
+  PIIFlagYes: !Equals
+    - !Ref PIIFlag
+    - 'Yes'
+  PIIFlagNo: !Equals
+    - !Ref PIIFlag
+    - 'No'
+  RetentionPolicySpecified: !Equals
+    - !Ref RetentionPolicyFlag
+    - 'Yes'
+  RetentionYes: !Equals
+    - !Ref RetentionPolicyFlag
+    - 'Yes'
+  RetentionNo: !Equals
+    - !Ref RetentionPolicyFlag
+    - 'No'
+  ExpireNoncurrentVersionsEnabled: !Equals
+    - !Ref ExpireNoncurrentVersionsFlag
+    - 'Yes'
+  TransitionToIntelligentTieringEnabled: !Equals
+    - !Ref TransitionToIntelligentTieringFlag
+    - 'Yes'
+  TransitionToGlacierEnabled: !Equals
+    - !Ref TransitionToGlacierFlag
+    - 'Yes'
+  HasLifecycleConfiguration: !Or
+    - !Condition RetentionYes
+    - !Condition ExpireNoncurrentVersionsEnabled
+    - !Condition TransitionToIntelligentTieringEnabled
+    - !Condition TransitionToGlacierEnabled
+  VersioningEnabled: !Equals
+    - !Ref VersioningConfiguration
+    - Enabled
+  ExportEnabled: !Equals
+    - !Ref ExportFlag
+    - 'Yes'
+  ExportNotEnabled: !Equals
+    - !Ref ExportFlag
+    - 'No'
+  HasExportName: !Not
+    - !Equals
+      - !Ref ExportName
+      - ''
+  Account01Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account01
+        - ''
+  Account02Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account02
+        - ''
+  Account03Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account03
+        - ''
+  Account04Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account04
+        - ''
+  Account05Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account05
+        - ''
+  Account06Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account06
+        - ''
+  Account07Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account07
+        - ''
+  Account08Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account08
+        - ''
+  Account09Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account09
+        - ''
+  Account10Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account10
+        - ''
+  Account11Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account11
+        - ''
+  Account12Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account12
+        - ''
+  Account13Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account13
+        - ''
+  Account14Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account14
+        - ''
+  Account15Specified: !And
+    - !Or
+      - !Condition IsAccountScopeMultiAccount
+      - !Condition IsAccountScopeCloudTrail
+    - !Not
+      - !Equals
+        - !Ref Account15
+        - ''
+  IsDestinationCRRBucket: !Equals
+    - !Ref CRRBucketType
+    - Destination
+  IsSourceCRRBucket: !Equals
+    - !Ref CRRBucketType
+    - Source
+  IsVersioningEnabledOrCRRBucket: !Or
+    - !Condition VersioningEnabled
+    - !Condition IsAccountScopeCRR
+  IsAccountScopeLocal: !Equals
+    - !Ref AccountScope
+    - local
+  IsAccountScopeLocalAccount: !Equals
+    - !Ref AccountScope
+    - local
+  IsAccountScopeMultiAccount: !Equals
+    - !Ref AccountScope
+    - multi-account
+  IsAccountLocalOrMultiAccount: !Or
+    - !Condition IsAccountScopeLocalAccount
+    - !Condition IsAccountScopeMultiAccount
+  IsAccountScopeCRR: !Equals
+    - !Ref AccountScope
+    - crr
+  IsAccountScopeCloudTrail: !Equals
+    - !Ref AccountScope
+    - cloudtrail
+  IsAccountScopeOrganization: !Equals
+    - !Ref AccountScope
+    - organization
+  IsAccountScopeFlowlog: !Equals
+    - !Ref AccountScope
+    - flowlog
+  IsAccountScopeConfig: !Equals
+    - !Ref AccountScope
+    - config
+  IsStandardDeployment: !Equals
+    - !Ref DeploymentMethod
+    - standard
+Resources:
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !If
+        - IsStandardDeployment
+        - !Join
+          - '-'
+          - - !Ref S3BucketPrefix
+            - !Ref S3BucketSuffix
+        - !Join
+          - '-'
+          - - !Ref DeploymentOrganization
+            - !Ref AWS::AccountId
+            - !Ref S3BucketSuffix
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              KMSMasterKeyID: !Ref KMSKey
+              SSEAlgorithm: aws:kms
+      LifecycleConfiguration: !If
+        - HasLifecycleConfiguration
+        - Rules:
+            - !If
+              - RetentionYes
+              - ExpirationInDays: !Ref RetentionPolicyDays
+                Id: Retention Policy Rule
+                Status: Enabled
+              - !Ref AWS::NoValue
+            - !If
+              - ExpireNoncurrentVersionsEnabled
+              - NoncurrentVersionExpirationInDays: !Ref ExpireNoncurrentVersionsDays
+                Id: Expire Noncurrent Versions Rule
+                Status: Enabled
+              - !Ref AWS::NoValue
+            - !If
+              - TransitionToIntelligentTieringEnabled
+              - Transitions:
+                  - StorageClass: INTELLIGENT_TIERING
+                    TransitionInDays: 0
+                Id: Transition Intelligent Tiering Rule
+                Status: Enabled
+              - !Ref AWS::NoValue
+            - !If
+              - TransitionToIntelligentTieringEnabled
+              - NoncurrentVersionTransitions:
+                  - StorageClass: INTELLIGENT_TIERING
+                    TransitionInDays: 0
+                Id: Noncurrent Versions Transition Intelligent Tiering Rule
+                Status: Enabled
+              - !Ref AWS::NoValue
+            - !If
+              - TransitionToGlacierEnabled
+              - Transitions:
+                  - StorageClass: GLACIER
+                    TransitionInDays: !Ref TransitionToGlacierDays
+                Id: Transition Glacier Rule
+                Status: Enabled
+              - !Ref AWS::NoValue
+        - !Ref AWS::NoValue
+      VersioningConfiguration: !If
+        - IsVersioningEnabledOrCRRBucket
+        - Status: Enabled
+        - !Ref AWS::NoValue
+      LoggingConfiguration:
+        DestinationBucketName: !Join
+          - '-'
+          - - logs
+            - !Ref AWS::AccountId
+        LogFilePrefix: !If
+          - IsStandardDeployment
+          - !Join
+            - '-'
+            - - !Ref S3BucketPrefix
+              - !Ref S3BucketSuffix
+              - ''
+          - !Join
+            - '-'
+            - - !Ref DeploymentOrganization
+              - !Ref AWS::AccountId
+              - !Ref S3BucketSuffix
+              - ''
+      Tags:
+        - Key: Name
+          Value: !If
+            - IsStandardDeployment
+            - !Join
+              - '-'
+              - - !Ref S3BucketPrefix
+                - !Ref S3BucketSuffix
+            - !Join
+              - '-'
+              - - !Ref DeploymentOrganization
+                - !Ref AWS::AccountId
+                - !Ref S3BucketSuffix
+        - Key: application
+          Value: !Ref TagApplication
+        - Key: application_tier
+          Value: S3
+        - Key: environment
+          Value: !Ref TagEnvironment
+        - Key: wbs_standing_order
+          Value: !Ref TagWBSStandingOrder
+        - Key: description
+          Value: !Ref TagDescription
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Id: BucketPolicy
+        Version: 2012-10-17
+        Statement:
+          - Sid: AllowSSLRequestsOnly
+            Action: s3:*
+            Effect: Deny
+            Resource:
+              - !Join
+                - ':'
+                - - arn
+                  - !Ref AWS::Partition
+                  - 's3::'
+                  - !Ref S3Bucket
+              - !Join
+                - ':'
+                - - arn
+                  - !Ref AWS::Partition
+                  - 's3::'
+                  - !Join
+                    - ''
+                    - - !Ref S3Bucket
+                      - /*
+            Condition:
+              Bool:
+                aws:SecureTransport: 'false'
+            Principal: '*'
+          - !If
+            - PIIFlagNo
+            - Sid: AWSAccessForNonPII
+              Effect: Allow
+              Action: 's3:*'
+              Principal:
+                AWS:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CDADataPIIEngineer.DLSmartOps${TagEnvironment}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CloudEngineer.DLSmartOps${TagEnvironment}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CDADataPIIScientst.DLSmartOps${TagEnvironment}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CDADataEngineer.DLSmartOps${TagEnvironment}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CDADataAnalyst.DLSmartOps${TagEnvironment}'
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CDADataScientist.DLSmartOps${TagEnvironment}'         
+              Resource:
+                - !Sub arn:aws:s3:::${S3Bucket}
+                - !Sub arn:aws:s3:::${S3Bucket}/*
+            - !Ref AWS::NoValue
+          - !If
+            - PIIFlagYes
+            - Sid: AWSAccessForPII
+              Effect: Allow
+              Action: 's3:*'
+              Principal:
+                AWS:
+                  - !Sub 'arn:aws:iam::${AWS::AccountId}:role/ADFS-CloudEngineer.DLSmartOps${TagEnvironment}'            
+              Resource:
+                - !Sub arn:aws:s3:::${S3Bucket}
+                - !Sub arn:aws:s3:::${S3Bucket}/*
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountLocalOrMultiAccount
+            - Sid: AWSAccessToS3Bucket
+              Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+                - s3:DeleteObject
+              Effect: Allow
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Ref S3Bucket
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /*
+              Principal:
+                AWS:
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 'iam:'
+                      - !Ref AWS::AccountId
+                      - root
+                  - !If
+                    - Account01Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account01
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account02Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account02
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account03Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account03
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account04Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account04
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account05Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account05
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account06Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account06
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account07Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account07
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account08Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account08
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account09Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account09
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account10Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account10
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account11Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account11
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account12Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account12
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account13Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account13
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account14Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account14
+                        - root
+                    - !Ref AWS::NoValue
+                  - !If
+                    - Account15Specified
+                    - !Join
+                      - ':'
+                      - - arn
+                        - !Ref AWS::Partition
+                        - 'iam:'
+                        - !Ref Account15
+                        - root
+                    - !Ref AWS::NoValue
+            - !Ref AWS::NoValue
+          - !If
+            - IsDestinationCRRBucket
+            - Sid: S3ReplicationPolicyStmt1
+              Effect: Allow
+              Principal:
+                AWS:
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 'iam:'
+                      - !Ref CRROtherAccount
+                      - root
+              Action:
+                - s3:GetBucketVersioning
+                - s3:PutBucketVersioning
+                - s3:ReplicateObject
+                - s3:ReplicateDelete
+                - s3:ObjectOwnerOverrideToBucketOwner
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Ref S3Bucket
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /*
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeCloudTrail
+            - Sid: AWSCloudTrailGetBucketAclLocalScope
+              Action: s3:GetBucketAcl
+              Effect: Allow
+              Principal:
+                Service: cloudtrail.amazonaws.com
+              Resource: !Join
+                - ':'
+                - - arn
+                  - !Ref AWS::Partition
+                  - 's3::'
+                  - !Ref S3Bucket
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeCloudTrail
+            - Sid: AWSCloudTrailPutObjectLocalScope
+              Action: s3:PutObject
+              Condition:
+                StringEquals:
+                  s3:x-amz-acl: bucket-owner-full-control
+              Effect: Allow
+              Principal:
+                Service: cloudtrail.amazonaws.com
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /AWSLogs/
+                        - !Ref AWS::AccountId
+                        - /*
+                - !If
+                  - Account01Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account01
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account02Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account02
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account03Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account03
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account04Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account04
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account05Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account05
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account06Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account06
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account07Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account07
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account08Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account08
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account09Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account09
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account10Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account10
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account11Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account11
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account12Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account12
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account13Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account13
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account14Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account14
+                          - /*
+                  - !Ref AWS::NoValue
+                - !If
+                  - Account15Specified
+                  - !Join
+                    - ':'
+                    - - arn
+                      - !Ref AWS::Partition
+                      - 's3::'
+                      - !Join
+                        - ''
+                        - - !Ref S3Bucket
+                          - /AWSLogs/
+                          - !Ref Account15
+                          - /*
+                  - !Ref AWS::NoValue
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeOrganization
+            - Sid: S3OrganizationPolicyStmt1
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Ref S3Bucket
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /*
+              Condition:
+                StringEquals:
+                  aws:PrincipalOrgID:
+                    - !Ref OrganizationId
+                  aws:PrincipalType:
+                    - Account
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeFlowlog
+            - Sid: S3FlowlogPolicyStmt1
+              Effect: Allow
+              Principal: '*'
+              Action:
+                - s3:AbortMultipartUpload
+                - s3:GetBucketLocation
+                - s3:GetObject
+                - s3:ListBucket
+                - s3:ListBucketMultipartUploads
+                - s3:PutObject
+                - s3:DeleteObject
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Ref S3Bucket
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /*
+              Condition:
+                StringEquals:
+                  aws:PrincipalOrgID:
+                    - !Ref OrganizationId
+                  aws:PrincipalType:
+                    - Account
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeFlowlog
+            - Sid: AWSLogDeliveryWrite
+              Action: s3:PutObject
+              Condition:
+                StringEquals:
+                  s3:x-amz-acl: bucket-owner-full-control
+              Effect: Allow
+              Principal:
+                Service: delivery.logs.amazonaws.com
+              Resource:
+                - !Join
+                  - ':'
+                  - - arn
+                    - !Ref AWS::Partition
+                    - 's3::'
+                    - !Join
+                      - ''
+                      - - !Ref S3Bucket
+                        - /AWSLogs/*
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeFlowlog
+            - Sid: AWSLogsDeliveryAclCheck
+              Action: s3:GetBucketAcl
+              Effect: Allow
+              Principal:
+                Service: delivery.logs.amazonaws.com
+              Resource: !Join
+                - ':'
+                - - arn
+                  - !Ref AWS::Partition
+                  - 's3::'
+                  - !Ref S3Bucket
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeConfig
+            - Sid: AWSConfigBucketPermissionsCheck
+              Effect: Allow
+              Principal:
+                Service:
+                  - config.amazonaws.com
+              Action: s3:GetBucketAcl
+              Resource: !Sub arn:${AWS::Partition}:s3:::${S3Bucket}
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeConfig
+            - Sid: AWSConfigBucketExistenceCheck
+              Effect: Allow
+              Principal:
+                Service:
+                  - config.amazonaws.com
+              Action: s3:ListBucket
+              Resource: !Sub arn:${AWS::Partition}:s3:::${S3Bucket}
+            - !Ref AWS::NoValue
+          - !If
+            - IsAccountScopeConfig
+            - Sid: AWSConfigBucketDelivery
+              Effect: Allow
+              Principal:
+                Service:
+                  - config.amazonaws.com
+              Action: s3:PutObject
+              Resource: !Sub arn:${AWS::Partition}:s3:::${S3Bucket}/AWSLogs/*
+              Condition:
+                StringEquals:
+                  s3:x-amz-acl: bucket-owner-full-control
+            - !Ref AWS::NoValue
+
+Outputs:
+  S3BucketArn:
+    Value: !GetAtt S3Bucket.Arn
+    Description: Arn of bucket
+  S3BucketName:
+    Value: !Ref S3Bucket
+    Description: Bucket Name
+    Condition: ExportNotEnabled
+  S3BucketNameWithExport:
+    Value: !Ref S3Bucket
+    Description: Bucket Name
+    Condition: ExportEnabled
+    Export:
+      Name: !If
+        - HasExportName
+        - !Ref ExportName
+        - !If
+          - IsStandardDeployment
+          - !Join
+            - '-'
+            - - !Ref S3BucketPrefix
+              - !Ref S3BucketSuffix
+          - !Join
+            - '-'
+            - - !Ref DeploymentOrganization
+              - !Ref AWS::AccountId
+              - !Ref S3BucketSuffix
