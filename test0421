@@ -1,0 +1,51 @@
+import boto3
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Access AWS credentials from environment variables
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+    verify=False
+)
+
+def add_tag_to_s3_buckets(tag_key, tag_value):
+    buckets = s3_client.list_buckets()['Buckets']
+
+    for bucket in buckets:
+        bucket_name = bucket['Name']
+        
+        # Get existing tags
+        try:
+            tagging = s3_client.get_bucket_tagging(Bucket=bucket_name)
+            tags = tagging['TagSet']
+        except s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchTagSet':
+                tags = []
+            else:
+                print(f"Error retrieving tags for {bucket_name}: {e}")
+                continue
+        
+        # Update tags without overwriting
+        tags.append({'Key': tag_key, 'Value': tag_value})
+        unique_tags = {tag['Key']: tag['Value'] for tag in tags}
+        
+        # Apply new tags
+        s3_client.put_bucket_tagging(
+            Bucket=bucket_name,
+            Tagging={'TagSet': [{'Key': k, 'Value': v} for k, v in unique_tags.items()]}
+        )
+
+        print(f"Added tag {tag_key}:{tag_value} to {bucket_name}")
+
+# Get input from user
+tag_key = input("Enter the tag key: ")
+tag_value = input("Enter the tag value: ")
+
+# Run function with user-provided input
+add_tag_to_s3_buckets(tag_key, tag_value)
