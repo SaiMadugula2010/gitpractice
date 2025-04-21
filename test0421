@@ -61,3 +61,69 @@ def add_tag_to_each_bucket_interactively():
 
 # Run the function
 add_tag_to_each_bucket_interactively()
+
+
+
+
+
+
+
+
+import boto3
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Access AWS credentials from environment variables
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+    verify=False
+)
+
+def update_pii_tag_to_empty():
+    buckets = s3_client.list_buckets()['Buckets']
+
+    for bucket in buckets:
+        bucket_name = bucket['Name']
+        print(f"\n🔍 Checking bucket: {bucket_name}")
+
+        try:
+            tagging = s3_client.get_bucket_tagging(Bucket=bucket_name)
+            tags = tagging['TagSet']
+        except s3_client.exceptions.ClientError as e:
+            if e.response['Error']['Code'] == 'NoSuchTagSet':
+                print("ℹ️ No tags found.")
+                continue
+            else:
+                print(f"⚠️ Error retrieving tags for {bucket_name}: {e}")
+                continue
+
+        # Convert to dict
+        tag_dict = {tag['Key']: tag['Value'] for tag in tags}
+
+        # Check and update if 'pii' has value 'no'
+        if tag_dict.get("pii", "").lower() == "no":
+            tag_dict["pii"] = ""
+            print(f"🔄 Updating 'pii' tag value to empty for {bucket_name}")
+
+            # Convert back to list and update tagging
+            updated_tags = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+            try:
+                s3_client.put_bucket_tagging(
+                    Bucket=bucket_name,
+                    Tagging={'TagSet': updated_tags}
+                )
+                print(f"✅ Updated tags for {bucket_name}")
+            except Exception as e:
+                print(f"❌ Failed to update tags for {bucket_name}: {e}")
+        else:
+            print("✅ No update needed.")
+
+# Run it
+update_pii_tag_to_empty()
+
