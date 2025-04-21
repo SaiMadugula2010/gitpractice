@@ -14,13 +14,14 @@ s3_client = boto3.client(
     verify=False
 )
 
-def add_tag_to_s3_buckets(tag_key, tag_value):
+def add_tag_to_each_bucket_interactively():
     buckets = s3_client.list_buckets()['Buckets']
 
     for bucket in buckets:
         bucket_name = bucket['Name']
-        
-        # Get existing tags
+        print(f"\n🔍 Bucket: {bucket_name}")
+
+        # Step 1: Get existing tags (if any)
         try:
             tagging = s3_client.get_bucket_tagging(Bucket=bucket_name)
             tags = tagging['TagSet']
@@ -28,24 +29,35 @@ def add_tag_to_s3_buckets(tag_key, tag_value):
             if e.response['Error']['Code'] == 'NoSuchTagSet':
                 tags = []
             else:
-                print(f"Error retrieving tags for {bucket_name}: {e}")
+                print(f"⚠️ Error retrieving tags for {bucket_name}: {e}")
                 continue
-        
-        # Update tags without overwriting
-        tags.append({'Key': tag_key, 'Value': tag_value})
-        unique_tags = {tag['Key']: tag['Value'] for tag in tags}
-        
-        # Apply new tags
-        s3_client.put_bucket_tagging(
-            Bucket=bucket_name,
-            Tagging={'TagSet': [{'Key': k, 'Value': v} for k, v in unique_tags.items()]}
-        )
 
-        print(f"Added tag {tag_key}:{tag_value} to {bucket_name}")
+        # Step 2: Remove 'pii' tag with empty value if present
+        tags = [tag for tag in tags if not (tag['Key'].lower() == 'pii' and tag['Value'].strip() == '')]
 
-# Get input from user
-tag_key = input("Enter the tag key: ")
-tag_value = input("Enter the tag value: ")
+        # Step 3: Prompt for new tag
+        tag_key = input("Enter tag key (or press Enter to skip): ").strip()
+        if not tag_key:
+            print("⏩ Skipping tagging.")
+        else:
+            tag_value = input("Enter tag value: ").strip()
+            tag_dict = {tag['Key']: tag['Value'] for tag in tags}
+            tag_dict[tag_key] = tag_value  # Add/overwrite
 
-# Run function with user-provided input
-add_tag_to_s3_buckets(tag_key, tag_value)
+            tags = [{'Key': k, 'Value': v} for k, v in tag_dict.items()]
+
+        # Step 4: Apply updated tags (if any)
+        if tags:
+            try:
+                s3_client.put_bucket_tagging(
+                    Bucket=bucket_name,
+                    Tagging={'TagSet': tags}
+                )
+                print(f"✅ Updated tags for {bucket_name}")
+            except Exception as e:
+                print(f"❌ Error updating tags for {bucket_name}: {e}")
+        else:
+            print("ℹ️ No tags to apply.")
+
+# Run the function
+add_tag_to_each_bucket_interactively()
