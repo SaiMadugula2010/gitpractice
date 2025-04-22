@@ -39,3 +39,68 @@ if __name__ == "__main__":
     jobs = get_jobs_with_version_less_than_3()
     write_to_csv(jobs)
     print(f"CSV file generated with {len(jobs)} jobs.")
+
+
+
+
+
+
+
+
+
+import boto3
+import os
+import csv
+from dotenv import load_dotenv
+
+# Load env vars from .env file
+load_dotenv()
+
+# Create Glue client with credentials from env
+glue = boto3.client(
+    'glue',
+    region_name='us-east-1',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+    verify=False
+)
+
+def get_jobs_with_version_less_than_3():
+    jobs_with_lower_version = []
+    try:
+        paginator = glue.get_paginator('list_jobs')
+        for page in paginator.paginate():
+            job_names = page.get('JobNames', [])
+            if not job_names:
+                print("No job names found in this page.")
+                continue
+
+            for job_name in job_names:
+                try:
+                    job = glue.get_job(JobName=job_name)
+                    glue_version = job['Job'].get('GlueVersion', '0.9')
+                    if float(glue_version) < 3.0:
+                        jobs_with_lower_version.append((job_name, glue_version))
+                except Exception as job_err:
+                    print(f"Error fetching job {job_name}: {job_err}")
+    except Exception as e:
+        print(f"Error listing jobs: {e}")
+    
+    return jobs_with_lower_version
+
+def write_to_csv(jobs, filename="glue_jobs_below_version_3.csv"):
+    if not jobs:
+        print("No jobs found with Glue version < 3.0")
+        return
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Job Name', 'Glue Version'])
+        for job_name, version in jobs:
+            writer.writerow([job_name, version])
+
+if __name__ == "__main__":
+    jobs = get_jobs_with_version_less_than_3()
+    write_to_csv(jobs)
+    print(f"✅ CSV file generated with {len(jobs)} jobs.")
+
