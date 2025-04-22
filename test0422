@@ -1,0 +1,6 @@
+aws glue list-jobs --query 'JobNames' --output text | tr '\t' '\n' | while read job; do
+  version=$(aws glue get-job --job-name "$job" --query 'Job.JobCommand.GlueVersion' --output text)
+  if [ "$version" == "2.0" ]; then
+    echo "$job"
+  fi
+done
