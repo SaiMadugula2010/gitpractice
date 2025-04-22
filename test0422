@@ -1,6 +1,41 @@
-aws glue list-jobs --query 'JobNames' --output text | tr '\t' '\n' | while read job; do
-  version=$(aws glue get-job --job-name "$job" --query 'Job.JobCommand.GlueVersion' --output text)
-  if [ "$version" == "2.0" ]; then
-    echo "$job"
-  fi
-done
+import boto3
+import os
+import csv
+
+# Set up the Glue client with environment credentials
+glue = boto3.client(
+    'glue',
+    region_name='us-east-1',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+    verify=False
+)
+
+def get_jobs_with_version_less_than_3():
+    jobs_with_lower_version = []
+    paginator = glue.get_paginator('list_jobs')
+
+    for page in paginator.paginate():
+        for job_name in page['JobNames']:
+            job = glue.get_job(JobName=job_name)
+            glue_version = job['Job'].get('GlueVersion', '0.9')  # default if not set
+            try:
+                if float(glue_version) < 3.0:
+                    jobs_with_lower_version.append((job_name, glue_version))
+            except ValueError:
+                continue  # skip if version can't be parsed
+
+    return jobs_with_lower_version
+
+def write_to_csv(jobs, filename="glue_jobs_below_version_3.csv"):
+    with open(filename, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Job Name', 'Glue Version'])
+        for job_name, version in jobs:
+            writer.writerow([job_name, version])
+
+if __name__ == "__main__":
+    jobs = get_jobs_with_version_less_than_3()
+    write_to_csv(jobs)
+    print(f"CSV file generated with {len(jobs)} jobs.")
