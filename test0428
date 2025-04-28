@@ -267,3 +267,11 @@ for page in paginator.paginate():
 
 print("\n✅ All matching Glue job scripts downloaded.")
 
+
+
+
+
+
+
+
+requests.exceptions.SSLError: HTTPSConnectionPool(host='prod-04-2014-tasks.s3.us-east-1.amazonaws.com', port=443): Max retries exceeded with url: /snapshots/769656648324/datalake-mmt-material-depth-structure-17b2abd7-4c90-4c9b-9878-cd185719c561?versionId=gmSaOamaIyKjN52LglXqpN3ji65I4.J9&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEN%2F%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FwEaCXVzLWVhc3QtMSJGMEQCIHvwf4gNIsx6Or9gaj1jvTYxl5LVdm6wE8kpHXA9O09eAiAngtq76aBvKe9Llj%2BW0FhPH7RFJPKleC9WyhNLGd7PxyqJAgh3EAAaDDc0OTY3ODkwMjgzOSIM1GInHu9ZzUcEXz9tKuYBiAioeTlmji3KVkBhx6ahaclRAK8zQCe4iAI1HQclu27tzSuK2HNHoJqMMUXyN55shQ2CXom1LM1Iv9h07gOJYSBn5uUh1dJlE3aRr654qd%2FXamMCCi7%2BMfVvqCAXXTEkuAZCocr7OOVlCS9YknBLHbcB%2Fm3gNUemNGz6XbpRiTyP28X3bCYi3a85ywOGoQmSCuPU1Gw2%2B%2B%2B%2BB22P5hzP6nEBH1N6sXqfgTmDxQJw0q2DoSHyGUUYv%2BMABADs3LmX3xvvRepddetg6K1Agc0m1%2FFkf2%2F82H4HBfI55J97sKApVObBFR4wk52%2BwAY6kAFXtZND5iIHLSlz7tC579KNS7izyx9QYN%2FQJZMJmSmG7NXDCh85cPB%2BBq2b4d4N41lSw0zKbYoPh8ZWECUDEFvqcBYdqNsSiLoRiQvUbN6mn8wPzVCgGd5g8KpNb03pGgpqe8Tig0oozfsPmOZXaH46mQ3JOfGgCwg4lK4J7sJ9GgrCnbohlbjp6B8A6OiCtOY%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20250428T203945Z&X-Amz-SignedHeaders=host&X-Amz-Expires=600&X-Amz-Credential=ASIA25DCYHY3XEACHWD4%2F20250428%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=abc5149a693a154883fa4968d10d8c4c4da47099a830b1da7ae3e74b0ad59c3f (Caused by SSLError(SSLCertVerificationError(1, '[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self signed certificate in certificate chain (_ssl.c:992)')))
