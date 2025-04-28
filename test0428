@@ -1,0 +1,153 @@
+######lambda#######
+
+
+import boto3
+import requests
+import os
+import json
+import zipfile
+import tempfile
+
+# Set up Lambda client
+client = boto3.client('lambda',
+                      aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                      aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                      aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                      verify=False,   # Remove or set True if needed
+                      region_name='us-east-1'  # <-- change to your region
+                     )
+
+# Directory to save final ZIPs
+final_download_dir = 'final_downloaded_lambdas'
+os.makedirs(final_download_dir, exist_ok=True)
+
+# Temporary working directory
+working_dir = tempfile.mkdtemp()
+
+# Paginator to get all functions
+paginator = client.get_paginator('list_functions')
+for page in paginator.paginate():
+    for function in page['Functions']:
+        function_name = function['FunctionName']
+        
+        # Filter by name
+        if "datalake-mmt" in function_name:
+            print(f"Processing {function_name}...")
+            
+            # Get full function details
+            response = client.get_function(FunctionName=function_name)
+            
+            # 1. Download Lambda code
+            download_url = response['Code']['Location']
+            r = requests.get(download_url)
+            code_zip_path = os.path.join(working_dir, "code.zip")
+            with open(code_zip_path, 'wb') as f:
+                f.write(r.content)
+            
+            # 2. Extract code to temp dir
+            extracted_code_dir = os.path.join(working_dir, "code")
+            os.makedirs(extracted_code_dir, exist_ok=True)
+            with zipfile.ZipFile(code_zip_path, 'r') as zip_ref:
+                zip_ref.extractall(extracted_code_dir)
+            
+            # 3. Save configuration JSON
+            config_path = os.path.join(working_dir, "config.json")
+            with open(config_path, 'w') as f:
+                json.dump(response['Configuration'], f, indent=4)
+            
+            # 4. Create final combined ZIP
+            final_zip_path = os.path.join(final_download_dir, f"{function_name}.zip")
+            with zipfile.ZipFile(final_zip_path, 'w') as zipf:
+                # Add code files
+                for foldername, subfolders, filenames in os.walk(extracted_code_dir):
+                    for filename in filenames:
+                        file_path = os.path.join(foldername, filename)
+                        # Preserve folder structure inside 'code/' directory
+                        arcname = os.path.relpath(file_path, extracted_code_dir)
+                        zipf.write(file_path, arcname=os.path.join("code", arcname))
+                
+                # Add configuration
+                zipf.write(config_path, arcname="config.json")
+            
+            print(f"Final package created: {final_zip_path}")
+
+print("\n✅ All matching functions downloaded with code + config bundled together.")
+
+
+
+#### glue jobs 
+import boto3
+import requests
+import os
+import json
+import zipfile
+import tempfile
+
+# Set up Glue client
+client = boto3.client('glue',
+                      aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                      aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                      aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                      verify=False,   # Remove or set True
+                      region_name='us-east-1'  # <-- your region
+                     )
+
+# Set up S3 client to download scripts
+s3 = boto3.client('s3',
+                  aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                  aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                  aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                  verify=False,
+                  region_name='us-east-1'
+                 )
+
+# Final directory to save
+final_download_dir = 'final_downloaded_glue_jobs'
+os.makedirs(final_download_dir, exist_ok=True)
+
+# Temporary working directory
+working_dir = tempfile.mkdtemp()
+
+# List all Glue jobs
+paginator = client.get_paginator('get_jobs')
+for page in paginator.paginate():
+    for job in page['Jobs']:
+        job_name = job['Name']
+        
+        if "datalake-mmt" in job_name:
+            print(f"Processing Glue Job: {job_name}...")
+
+            # 1. Get job script location from Command.ScriptLocation
+            script_s3_path = job.get('Command', {}).get('ScriptLocation')
+            if not script_s3_path:
+                print(f"No ScriptLocation found for {job_name}, skipping...")
+                continue
+
+            # Parse S3 path
+            if script_s3_path.startswith('s3://'):
+                s3_parts = script_s3_path.replace('s3://', '').split('/', 1)
+                bucket = s3_parts[0]
+                key = s3_parts[1]
+
+            # Download the script
+            script_path = os.path.join(working_dir, "script.py")
+            s3.download_file(bucket, key, script_path)
+            
+            # 2. Save job configuration
+            config_path = os.path.join(working_dir, "config.json")
+            with open(config_path, 'w') as f:
+                json.dump(job, f, indent=4)
+            
+            # 3. Create final ZIP
+            final_zip_path = os.path.join(final_download_dir, f"{job_name}.zip")
+            with zipfile.ZipFile(final_zip_path, 'w') as zipf:
+                zipf.write(script_path, arcname="script.py")
+                zipf.write(config_path, arcname="config.json")
+            
+            print(f"Final package created: {final_zip_path}")
+
+print("\n✅ All matching Glue Jobs downloaded with script + config bundled together.")
+
+
+
+###### schedules #####
