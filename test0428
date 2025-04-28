@@ -199,3 +199,71 @@ for page in paginator.paginate():
 
 print("\n✅ All matching EventBridge schedules downloaded with configurations bundled.")
 
+
+
+
+
+
+
+
+
+
+
+import boto3
+import os
+
+# Set up Glue client
+glue_client = boto3.client('glue',
+                            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                            aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                            verify=False,
+                            region_name='us-east-1'  # <-- your region
+                          )
+
+# Set up S3 client
+s3_client = boto3.client('s3',
+                         aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                         aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                         aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                         verify=False,
+                         region_name='us-east-1'
+                        )
+
+# Directory to save scripts
+scripts_dir = 'downloaded_glue_scripts'
+os.makedirs(scripts_dir, exist_ok=True)
+
+# List all Glue jobs
+paginator = glue_client.get_paginator('get_jobs')
+for page in paginator.paginate():
+    for job in page['Jobs']:
+        job_name = job['Name']
+        
+        if "datalake-mmt" in job_name:
+            print(f"Processing Glue Job: {job_name}...")
+
+            # Get job script location
+            script_s3_path = job.get('Command', {}).get('ScriptLocation')
+            if not script_s3_path:
+                print(f"No ScriptLocation found for {job_name}, skipping...")
+                continue
+
+            # Parse S3 path
+            if script_s3_path.startswith('s3://'):
+                s3_parts = script_s3_path.replace('s3://', '').split('/', 1)
+                bucket = s3_parts[0]
+                key = s3_parts[1]
+
+                # Set local file path
+                script_file_path = os.path.join(scripts_dir, f"{job_name}.py")
+
+                # Download script directly
+                s3_client.download_file(bucket, key, script_file_path)
+
+                print(f"✅ Script downloaded: {script_file_path}")
+            else:
+                print(f"Invalid ScriptLocation format for {job_name}: {script_s3_path}")
+
+print("\n✅ All matching Glue job scripts downloaded.")
+
