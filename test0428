@@ -151,3 +151,51 @@ print("\n✅ All matching Glue Jobs downloaded with script + config bundled toge
 
 
 ###### schedules #####
+import boto3
+import os
+import json
+import zipfile
+import tempfile
+
+# Set up EventBridge Scheduler client
+client = boto3.client('scheduler',
+                      aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                      aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                      aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                      verify=False,   # Remove or set True
+                      region_name='us-east-1'  # <-- your region
+                     )
+
+# Final directory to save
+final_download_dir = 'final_downloaded_eventbridge_schedules'
+os.makedirs(final_download_dir, exist_ok=True)
+
+# Temporary working directory
+working_dir = tempfile.mkdtemp()
+
+# Paginator to get all schedules
+paginator = client.get_paginator('list_schedules')
+for page in paginator.paginate():
+    for schedule in page['Schedules']:
+        schedule_name = schedule['Name']
+        
+        if "datalake-mmt" in schedule_name:
+            print(f"Processing EventBridge Schedule: {schedule_name}...")
+
+            # Get full schedule details
+            schedule_details = client.get_schedule(Name=schedule_name)
+
+            # Save schedule configuration
+            config_path = os.path.join(working_dir, "config.json")
+            with open(config_path, 'w') as f:
+                json.dump(schedule_details, f, indent=4)
+            
+            # Create final ZIP
+            final_zip_path = os.path.join(final_download_dir, f"{schedule_name}.zip")
+            with zipfile.ZipFile(final_zip_path, 'w') as zipf:
+                zipf.write(config_path, arcname="config.json")
+            
+            print(f"Final package created: {final_zip_path}")
+
+print("\n✅ All matching EventBridge schedules downloaded with configurations bundled.")
+
