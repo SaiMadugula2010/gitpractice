@@ -1,0 +1,78 @@
+import boto3
+import requests
+import os
+import json
+import zipfile
+import tempfile
+import datetime
+import shutil
+
+# Handle datetime objects during JSON serialization
+def convert_datetime(obj):
+    if isinstance(obj, (datetime.datetime, datetime.date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+# Set up Lambda client
+client = boto3.client('lambda',
+                      aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+                      aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+                      aws_session_token=os.getenv('AWS_SESSION_TOKEN'),
+                      verify=False,   # Disable SSL verification (for corporate firewalls)
+                      region_name='us-east-1'
+                     )
+
+# Directory to save final ZIPs
+final_download_dir = 'final_downloaded_lambdas'
+os.makedirs(final_download_dir, exist_ok=True)
+
+# Paginator to get all functions
+paginator = client.get_paginator('list_functions')
+for page in paginator.paginate():
+    for function in page['Functions']:
+        function_name = function['FunctionName']
+        
+        if "datalake-mmt" in function_name:
+            print(f"\nProcessing {function_name}...")
+
+            try:
+                # Get function details
+                response = client.get_function(FunctionName=function_name)
+                
+                # Create isolated temp dir for this function
+                with tempfile.TemporaryDirectory() as working_dir:
+                    # Download the Lambda code ZIP
+                    download_url = response['Code']['Location']
+                    r = requests.get(download_url, verify=False)
+                    code_zip_path = os.path.join(working_dir, "code.zip")
+                    with open(code_zip_path, 'wb') as f:
+                        f.write(r.content)
+                    
+                    # Extract ZIP contents
+                    extracted_code_dir = os.path.join(working_dir, "code")
+                    os.makedirs(extracted_code_dir, exist_ok=True)
+                    with zipfile.ZipFile(code_zip_path, 'r') as zip_ref:
+                        zip_ref.extractall(extracted_code_dir)
+                    
+                    # Save config JSON (handle datetime fields)
+                    config_path = os.path.join(working_dir, "config.json")
+                    with open(config_path, 'w') as f:
+                        json.dump(response['Configuration'], f, indent=4, default=convert_datetime)
+                    
+                    # Create combined ZIP
+                    final_zip_path = os.path.join(final_download_dir, f"{function_name}.zip")
+                    with zipfile.ZipFile(final_zip_path, 'w') as zipf:
+                        for foldername, subfolders, filenames in os.walk(extracted_code_dir):
+                            for filename in filenames:
+                                file_path = os.path.join(foldername, filename)
+                                arcname = os.path.relpath(file_path, extracted_code_dir)
+                                zipf.write(file_path, arcname=os.path.join("code", arcname))
+                        
+                        zipf.write(config_path, arcname="config.json")
+                    
+                    print(f"✅ Final package created: {final_zip_path}")
+            
+            except Exception as e:
+                print(f"❌ Error processing {function_name}: {e}")
+
+print("\n✅ All matching Lambda functions downloaded with code + config.")
