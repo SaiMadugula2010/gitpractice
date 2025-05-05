@@ -1,0 +1,55 @@
+
+import boto3
+from datetime import datetime, timezone
+
+def create_folder_in_s3(published_bucket_name, published_folder_name):
+    """
+    Creates a folder in an S3 bucket.
+
+    :param published_bucket_name: Name of the S3 bucket.
+    :param published_folder_name: Name of the folder to create.
+    """
+    s3_client = boto3.client('s3')
+    folder_key = f"{published_folder_name}/"  # Ensure the folder name ends with a '/'
+    s3_client.put_object(Bucket=published_bucket_name, Key=folder_key)
+    print(f"Folder '{published_folder_name}' created in bucket '{published_bucket_name}'.")
+
+def copy_today_files_within_bucket(bucket_name, source_prefix, target_prefix):
+    """
+    Copies today's files from folders starting with source_prefix directly to a folder named by target_prefix within the same S3 bucket.
+    
+
+    :param bucket_name: The name of the S3 bucket.
+    :param source_prefix: The source prefix to search for today's files to copy. This script will look for any folders starting with this prefix.
+    :param target_prefix: The target folder prefix where today's files will be copied to.
+    """
+    s3 = boto3.client('s3')
+    paginator = s3.get_paginator('list_objects_v2')
+    today = datetime.now(timezone.utc).date()
+    
+    # Iterate over all objects starting with the source_prefix
+    for page in paginator.paginate(Bucket=bucket_name, Prefix=source_prefix):
+        if "Contents" in page:
+            for obj in page['Contents']:
+                file_key = obj['Key']
+                last_modified_date = obj['LastModified'].date()
+                # Copy only today's files
+                if last_modified_date == today and "/" in file_key and not file_key.endswith('/'):
+                    copy_source = {'Bucket': bucket_name, 'Key': file_key}
+                    # Extract just the file name and prepend it with the target_prefix
+                    filename = file_key.split('/')[-1]  # Extract the file name
+                    target_key = f'{target_prefix}/{filename}'  # Construct the target key
+                    s3.copy_object(CopySource=copy_source, Bucket=bucket_name, Key=target_key)
+                    print(f'Copied {file_key} to {target_key}')
+
+def main():
+    published_bucket_name = 'pseg-dlsmartopsprod-amiisip-artemis-published-non-pii'
+    published_folder_name = 'cadmus-temp/output'
+    #create_folder_in_s3(published_bucket_name, published_folder_name)
+    bucket_name = 'pseg-dlsmartopsprod-amiisip-artemis-published-non-pii'  # Replace with your actual bucket name
+    source_prefix = 'cadmus-temp/output_'
+    target_prefix = 'cadmus-temp/output'  # The target directory within the same bucket
+    copy_today_files_within_bucket(bucket_name, source_prefix, target_prefix)
+
+if __name__ == '__main__':
+    main()
