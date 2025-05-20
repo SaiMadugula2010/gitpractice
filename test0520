@@ -1,0 +1,47 @@
+import boto3
+import os
+from dotenv import load_dotenv
+
+# Load credentials from .env file
+load_dotenv()
+
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.getenv('AWS_SESSION_TOKEN')  # optional
+aws_region = os.getenv('AWS_REGION', 'us-east-1')   # default to us-east-1
+
+# Your target bucket
+bucket_name = 'your-bucket-name'  # <-- Replace this
+
+# Local base directory to store downloads
+base_dir = 'downloaded_s3'
+bucket_dir = os.path.join(base_dir, bucket_name)
+os.makedirs(bucket_dir, exist_ok=True)
+
+# Set up boto3 client with loaded credentials
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    aws_session_token=aws_session_token,  # can be None
+    region_name=aws_region
+)
+
+print(f"Processing bucket: {bucket_name}")
+
+# Use paginator to list all objects
+paginator = s3.get_paginator('list_objects_v2')
+for page in paginator.paginate(Bucket=bucket_name):
+    if 'Contents' not in page:
+        continue
+    for obj in page['Contents']:
+        key = obj['Key']
+        local_path = os.path.join(bucket_dir, key)
+
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+
+        try:
+            print(f"Downloading {key} to {local_path}")
+            s3.download_file(bucket_name, key, local_path)
+        except Exception as e:
+            print(f"Failed to download {key}: {e}")
