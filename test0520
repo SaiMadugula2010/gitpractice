@@ -1,47 +1,58 @@
 import boto3
 import os
+import os.path
 from dotenv import load_dotenv
 
-# Load credentials from .env file
+# Load AWS credentials
 load_dotenv()
 
 aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
 aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-aws_session_token = os.getenv('AWS_SESSION_TOKEN')  # optional
-aws_region = os.getenv('AWS_REGION', 'us-east-1')   # default to us-east-1
+aws_session_token = os.getenv('AWS_SESSION_TOKEN')  # Optional
+aws_region = os.getenv('AWS_REGION', 'us-east-1')
 
-# Your target bucket
-bucket_name = 'your-bucket-name'  # <-- Replace this
+# S3 bucket and folder prefix
+bucket_name = 'sai'
+prefix = 'test/'
 
-# Local base directory to store downloads
-base_dir = 'downloaded_s3'
-bucket_dir = os.path.join(base_dir, bucket_name)
-os.makedirs(bucket_dir, exist_ok=True)
+# Local directory to save files (flat)
+download_dir = 's3_downloads'
+os.makedirs(download_dir, exist_ok=True)
 
-# Set up boto3 client with loaded credentials
+# Initialize S3 client
 s3 = boto3.client(
     's3',
     aws_access_key_id=aws_access_key,
     aws_secret_access_key=aws_secret_key,
-    aws_session_token=aws_session_token,  # can be None
+    aws_session_token=aws_session_token,
     region_name=aws_region
 )
 
-print(f"Processing bucket: {bucket_name}")
+print(f"Downloading files from s3://{bucket_name}/{prefix} to ./{download_dir}/")
 
-# Use paginator to list all objects
+# List all objects under prefix
 paginator = s3.get_paginator('list_objects_v2')
-for page in paginator.paginate(Bucket=bucket_name):
+for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
     if 'Contents' not in page:
         continue
     for obj in page['Contents']:
         key = obj['Key']
-        local_path = os.path.join(bucket_dir, key)
+        if key.endswith('/'):
+            continue  # skip folder placeholders
 
-        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        # Extract just the file name
+        file_name = os.path.basename(key)
+        local_path = os.path.join(download_dir, file_name)
+
+        # If a file with the same name exists, add a suffix to avoid overwriting
+        base, ext = os.path.splitext(file_name)
+        counter = 1
+        while os.path.exists(local_path):
+            local_path = os.path.join(download_dir, f"{base}_{counter}{ext}")
+            counter += 1
 
         try:
-            print(f"Downloading {key} to {local_path}")
+            print(f"Downloading {key} -> {local_path}")
             s3.download_file(bucket_name, key, local_path)
         except Exception as e:
-            print(f"Failed to download {key}: {e}")
+            print(f"Error downloading {key}: {e}")
