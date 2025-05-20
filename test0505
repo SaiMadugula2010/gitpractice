@@ -53,3 +53,42 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+NFO:root:Unable to decrypt claritas_incremental/SUMMARY_PSEG_CUSTOMER_DELTA_CLARITAS_RES_20241001_20241231_NW.txt.PGP.  GPG Error:
+gpg: WARNING: unsafe permissions on homedir `/tmp/gnupghome'
+[GNUPG:] ENC_TO 3EC99739AF832ED8 1 0
+[GNUPG:] USERID_HINT 3EC99739AF832ED8 claritasjoelprod09052024
+[GNUPG:] NEED_PASSPHRASE 3EC99739AF832ED8 9A81CBF9C199A157 1 0
+[GNUPG:] GOOD_PASSPHRASE
+gpg: [don't know]: partial length for invalid packet type 20
