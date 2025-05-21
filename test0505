@@ -1,62 +1,76 @@
+{
+  "bucket_name": "sai",
+  "prefix": "test/",
+  "download_dir": "s3_downloads",
+  "region": "us-east-1"
+}
+
+
+
+
+
+
 
 import boto3
-from datetime import datetime, timezone
+import os
+import json
+from dotenv import load_dotenv
 
-def create_folder_in_s3(published_bucket_name, published_folder_name):
-    """
-    Creates a folder in an S3 bucket.
+# Load .env for AWS credentials
+load_dotenv()
 
-    :param published_bucket_name: Name of the S3 bucket.
-    :param published_folder_name: Name of the folder to create.
-    """
-    s3_client = boto3.client('s3')
-    folder_key = f"{published_folder_name}/"  # Ensure the folder name ends with a '/'
-    s3_client.put_object(Bucket=published_bucket_name, Key=folder_key)
-    print(f"Folder '{published_folder_name}' created in bucket '{published_bucket_name}'.")
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.getenv('AWS_SESSION_TOKEN')  # Optional
+aws_region = os.getenv('AWS_REGION')
 
-def copy_today_files_within_bucket(bucket_name, source_prefix, target_prefix):
-    """
-    Copies today's files from folders starting with source_prefix directly to a folder named by target_prefix within the same S3 bucket.
-    
+# Load parameters from config.json
+with open('config.json') as f:
+    config = json.load(f)
 
-    :param bucket_name: The name of the S3 bucket.
-    :param source_prefix: The source prefix to search for today's files to copy. This script will look for any folders starting with this prefix.
-    :param target_prefix: The target folder prefix where today's files will be copied to.
-    """
-    s3 = boto3.client('s3')
-    paginator = s3.get_paginator('list_objects_v2')
-    today = datetime.now(timezone.utc).date()
-    
-    # Iterate over all objects starting with the source_prefix
-    for page in paginator.paginate(Bucket=bucket_name, Prefix=source_prefix):
-        if "Contents" in page:
-            for obj in page['Contents']:
-                file_key = obj['Key']
-                last_modified_date = obj['LastModified'].date()
-                # Copy only today's files
-                if last_modified_date == today and "/" in file_key and not file_key.endswith('/'):
-                    copy_source = {'Bucket': bucket_name, 'Key': file_key}
-                    # Extract just the file name and prepend it with the target_prefix
-                    filename = file_key.split('/')[-1]  # Extract the file name
-                    target_key = f'{target_prefix}/{filename}'  # Construct the target key
-                    s3.copy_object(CopySource=copy_source, Bucket=bucket_name, Key=target_key)
-                    print(f'Copied {file_key} to {target_key}')
+bucket_name = config['bucket_name']
+prefix = config['prefix']
+download_dir = config['download_dir']
+region = config.get('region', aws_region or 'us-east-1')
 
-def main():
-    published_bucket_name = 'pseg-dlsmartopsprod-amiisip-artemis-published-non-pii'
-    published_folder_name = 'cadmus-temp/output'
-    #create_folder_in_s3(published_bucket_name, published_folder_name)
-    bucket_name = 'pseg-dlsmartopsprod-amiisip-artemis-published-non-pii'  # Replace with your actual bucket name
-    source_prefix = 'cadmus-temp/output_'
-    target_prefix = 'cadmus-temp/output'  # The target directory within the same bucket
-    copy_today_files_within_bucket(bucket_name, source_prefix, target_prefix)
+os.makedirs(download_dir, exist_ok=True)
 
-if __name__ == '__main__':
-    main()
+# Initialize S3 client
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    aws_session_token=aws_session_token,
+    region_name=region
+)
 
+print(f"Downloading from s3://{bucket_name}/{prefix} to {download_dir}/")
 
+# Use paginator to list all objects under the prefix
+paginator = s3.get_paginator('list_objects_v2')
+for page in paginator.paginate(Bucket=bucket_name, Prefix=prefix):
+    if 'Contents' not in page:
+        continue
+    for obj in page['Contents']:
+        key = obj['Key']
+        if key.endswith('/'):
+            continue  # Skip folder "keys"
 
+        file_name = os.path.basename(key)
+        local_path = os.path.join(download_dir, file_name)
 
+        # Avoid overwriting duplicate names
+        base, ext = os.path.splitext(file_name)
+        counter = 1
+        while os.path.exists(local_path):
+            local_path = os.path.join(download_dir, f"{base}_{counter}{ext}")
+            counter += 1
+
+        try:
+            print(f"Downloading {key} -> {local_path}")
+            s3.download_file(bucket_name, key, local_path)
+        except Exception as e:
+            print(f"Failed to download {key}: {e}")
 
 
 
