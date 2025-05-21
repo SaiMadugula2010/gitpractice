@@ -106,3 +106,68 @@ gpg: WARNING: unsafe permissions on homedir `/tmp/gnupghome'
 [GNUPG:] NEED_PASSPHRASE 3EC99739AF832ED8 9A81CBF9C199A157 1 0
 [GNUPG:] GOOD_PASSPHRASE
 gpg: [don't know]: partial length for invalid packet type 20
+
+
+
+
+
+
+
+
+{
+  "bucket_name": "sai",
+  "prefix": "test/",
+  "upload_dir": "local_uploads",
+  "region": "us-east-1"
+}
+
+
+
+
+
+import boto3
+import os
+import json
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+aws_access_key = os.getenv('AWS_ACCESS_KEY_ID')
+aws_secret_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+aws_session_token = os.getenv('AWS_SESSION_TOKEN')  # optional
+aws_region = os.getenv('AWS_REGION')
+
+# Load config from JSON
+with open('config.json') as f:
+    config = json.load(f)
+
+bucket_name = config['bucket_name']
+prefix = config['prefix']
+upload_dir = config['upload_dir']
+region = config.get('region', aws_region or 'us-east-1')
+
+# Initialize S3 client
+s3 = boto3.client(
+    's3',
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    aws_session_token=aws_session_token,
+    region_name=region
+)
+
+# Recursively walk through upload_dir
+for root, _, files in os.walk(upload_dir):
+    for file in files:
+        local_path = os.path.join(root, file)
+
+        # Compute relative path to maintain structure
+        relative_path = os.path.relpath(local_path, upload_dir)
+        s3_key = os.path.join(prefix, relative_path).replace("\\", "/")
+
+        try:
+            print(f"Uploading {local_path} -> s3://{bucket_name}/{s3_key}")
+            s3.upload_file(local_path, bucket_name, s3_key)
+        except Exception as e:
+            print(f"Failed to upload {file}: {e}")
+
