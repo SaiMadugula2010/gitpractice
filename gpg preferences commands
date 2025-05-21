@@ -1,0 +1,3 @@
+gpg --edit-key YOUR_KEY_ID
+setpref AES256 AES192 AES CAST5 SHA256 SHA1 ZLIB BZIP2 ZIP Uncompressed
+save
