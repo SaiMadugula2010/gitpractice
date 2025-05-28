@@ -1,0 +1,79 @@
+import boto3
+from datetime import datetime, timezone
+from boto3.dynamodb.conditions import Attr
+from dotenv import load_dotenv
+import os
+
+# === Load AWS credentials from .env ===
+load_dotenv()
+
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY')
+AWS_SESSION_TOKEN = os.getenv('AWS_SESSION_TOKEN')  # Optional
+REGION = os.getenv('AWS_REGION', 'us-east-1')
+
+# === Get User Inputs ===
+TABLE_NAME = input("Enter DynamoDB Table Name: ").strip()
+PRIMARY_KEY = input("Enter Primary Key Name: ").strip()
+SORT_KEY = input("Enter Sort Key Name (or press Enter if not applicable): ").strip()
+SORT_KEY = SORT_KEY if SORT_KEY else None
+TIMESTAMP_ATTR = input("Enter Timestamp Attribute Name: ").strip()
+
+cutoff_input = input("Enter cutoff time (YYYY-MM-DDTHH:MM:SSZ / YYYY-MM-DD / UNIX timestamp): ").strip()
+
+# === Parse cutoff date ===
+try:
+    if cutoff_input.isdigit():
+        cutoff = int(cutoff_input)
+        is_unix = True
+        print(f"Using cutoff UNIX timestamp: {cutoff}")
+    else:
+        try:
+            cutoff_dt = datetime.strptime(cutoff_input, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except ValueError:
+            cutoff_dt = datetime.strptime(cutoff_input, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        cutoff = cutoff_dt.isoformat()
+        is_unix = False
+        print(f"Using cutoff ISO datetime: {cutoff}")
+except Exception as e:
+    print(f"Invalid date format: {e}")
+    exit(1)
+
+# === DynamoDB Client ===
+session = boto3.Session(
+    aws_access_key_id=AWS_ACCESS_KEY_ID,
+    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+    aws_session_token=AWS_SESSION_TOKEN,
+    region_name=REGION
+)
+dynamodb = session.resource('dynamodb')
+table = dynamodb.Table(TABLE_NAME)
+
+# === Scan & Delete Items ===
+deleted_count = 0
+start_key = None
+
+while True:
+    scan_kwargs = {
+        'FilterExpression': Attr(TIMESTAMP_ATTR).lt(cutoff) if not is_unix else Attr(TIMESTAMP_ATTR).lt(cutoff)
+    }
+    if start_key:
+        scan_kwargs['ExclusiveStartKey'] = start_key
+
+    response = table.scan(**scan_kwargs)
+    items = response.get('Items', [])
+
+    for item in items:
+        key_dict = {PRIMARY_KEY: item[PRIMARY_KEY]}
+        if SORT_KEY:
+            key_dict[SORT_KEY] = item[SORT_KEY]
+
+        table.delete_item(Key=key_dict)
+        print(f"Deleted: {key_dict}")
+        deleted_count += 1
+
+    start_key = response.get('LastEvaluatedKey', None)
+    if not start_key:
+        break
+
+print(f"\n✅ Deleted {deleted_count} items older than cutoff: {cutoff}")
