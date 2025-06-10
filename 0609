@@ -1,0 +1,4 @@
+aws redshift describe-clusters \
+  --query 'Clusters[*].[ClusterIdentifier,NodeType,ClusterStatus,MasterUsername,DBName,Endpoint.Address,Endpoint.Port,NumberOfNodes,VpcId]' \
+  --output text | \
+  awk 'BEGIN {OFS=","; print "ClusterIdentifier","NodeType","ClusterStatus","MasterUsername","DBName","EndpointAddress","Port","NumberOfNodes","VpcId"} {print $1,$2,$3,$4,$5,$6,$7,$8,$9}' > redshift_clusters.csv
