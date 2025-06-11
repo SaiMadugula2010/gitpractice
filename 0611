@@ -62,52 +62,83 @@ if __name__ == "__main__":
 
 
 
+
+
+
+
+import boto3
 import os
-import requests
 from dotenv import load_dotenv
 from tabulate import tabulate
 
-# Load CloudHealth API key from .env
+# Load .env AWS credentials
 load_dotenv()
-API_KEY = os.getenv("CH_API_KEY")
 
-BASE_URL = "https://chapi.cloudhealthtech.com/v1"
-HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {API_KEY}"
-}
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 
-def get_ec2_instance_details(input_value):
-    url = f"{BASE_URL}/assets/aws_instances"
-    params = {"show_all": "true"}
+# Get Account ID once
+def get_account_id():
+    sts = boto3.client(
+        "sts",
+        region_name=AWS_REGION,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    )
+    return sts.get_caller_identity()["Account"]
 
-    response = requests.get(url, headers=HEADERS, params=params)
-    if response.status_code != 200:
-        print(f"❌ Error fetching EC2 instances: {response.status_code}")
-        print(response.text)
+account_id = get_account_id()
+
+def get_ec2_details(search_term):
+    ec2 = boto3.client(
+        "ec2",
+        region_name=AWS_REGION,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    )
+
+    try:
+        # Try as instance ID
+        response = ec2.describe_instances(Filters=[
+            {"Name": "instance-id", "Values": [search_term]}
+        ])
+        if not response["Reservations"]:
+            # Try as Name tag
+            response = ec2.describe_instances(Filters=[
+                {"Name": "tag:Name", "Values": [search_term]}
+            ])
+    except Exception as e:
+        print(f"❌ Error: {e}")
         return
 
-    ec2_list = response.json().get("aws_instances", [])
-    matched = []
-
-    for inst in ec2_list:
-        instance_id = inst.get("instance_id", "")
-        name_tag = inst.get("name", "")
-
-        if input_value.lower() in instance_id.lower() or input_value.lower() in name_tag.lower():
-            matched.append(inst)
-
-    if not matched:
-        print(f"❌ No matching EC2 instances found for: {input_value}")
+    if not response["Reservations"]:
+        print(f"❌ No EC2 instance found for: {search_term}")
         return
 
-    for inst in matched:
-        print(f"\n✅ EC2 Instance: {inst.get('instance_id')} ({inst.get('name')})")
-        table = [[k, str(v)] for k, v in inst.items()]
-        print(tabulate(table, headers=["Field", "Value"], tablefmt="grid"))
+    for res in response["Reservations"]:
+        for instance in res["Instances"]:
+            instance_id = instance.get("InstanceId")
+            name_tag = next((tag["Value"] for tag in instance.get("Tags", []) if tag["Key"] == "Name"), "")
+            arn = f"arn:aws:ec2:{AWS_REGION}:{account_id}:instance/{instance_id}"
+
+            print(f"\n✅ Instance: {instance_id} ({name_tag})")
+            table = [
+                ["ARN", arn],
+                ["InstanceId", instance_id],
+                ["Name", name_tag]
+            ]
+            # Add a few more useful fields
+            keys_to_show = ["InstanceType", "State", "PrivateIpAddress", "PublicIpAddress", "AvailabilityZone"]
+            for key in keys_to_show:
+                val = instance.get(key) or instance.get("Placement", {}).get(key)
+                if val is not None:
+                    table.append([key, str(val)])
+
+            print(tabulate(table, headers=["Field", "Value"], tablefmt="grid"))
 
 if __name__ == "__main__":
-    user_inputs = input("Enter EC2 instance IDs or Name tags (comma-separated): ").strip()
-    inputs = [val.strip() for val in user_inputs.split(",")]
-    for val in inputs:
-        get_ec2_instance_details(val)
+    user_input = input("Enter EC2 instance IDs or Name tags (comma-separated): ").strip()
+    terms = [i.strip() for i in user_input.split(",")]
+    for term in terms:
+        get_ec2_details(term)
