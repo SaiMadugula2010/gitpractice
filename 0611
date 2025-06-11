@@ -1,0 +1,53 @@
+import boto3
+import os
+from dotenv import load_dotenv
+
+# Load credentials from .env file
+load_dotenv()
+
+AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
+
+def find_security_groups_with_ip(target_ip):
+    ec2 = boto3.client(
+        "ec2",
+        region_name=AWS_REGION,
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY
+    )
+
+    response = ec2.describe_security_groups()
+    matching_sgs = []
+
+    for sg in response["SecurityGroups"]:
+        group_id = sg["GroupId"]
+        group_name = sg["GroupName"]
+        for permission in sg.get("IpPermissions", []):
+            for ip_range in permission.get("IpRanges", []):
+                if ip_range.get("CidrIp") == target_ip:
+                    matching_sgs.append({
+                        "GroupId": group_id,
+                        "GroupName": group_name,
+                        "Protocol": permission.get("IpProtocol"),
+                        "PortRange": f"{permission.get('FromPort')} - {permission.get('ToPort')}",
+                        "CidrIp": ip_range.get("CidrIp"),
+                        "Description": ip_range.get("Description", "")
+                    })
+    return matching_sgs
+
+if __name__ == "__main__":
+    ip_input = input("Enter the IP address (CIDR format, e.g. 203.0.113.0/32): ").strip()
+
+    results = find_security_groups_with_ip(ip_input)
+
+    if results:
+        for sg in results:
+            print(f"\nSecurity Group ID: {sg['GroupId']}")
+            print(f"Name: {sg['GroupName']}")
+            print(f"Protocol: {sg['Protocol']}")
+            print(f"Port Range: {sg['PortRange']}")
+            print(f"Cidr IP: {sg['CidrIp']}")
+            print(f"Description: {sg['Description']}")
+    else:
+        print("No matching security groups found.")
