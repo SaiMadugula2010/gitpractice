@@ -1,0 +1,72 @@
+import boto3
+import os
+import csv
+from dotenv import load_dotenv
+
+# Load credentials from .env
+load_dotenv()
+
+aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+region = os.getenv("AWS_DEFAULT_REGION")
+
+# Get IAM role from user input
+TARGET_IAM_ROLE = input("Enter the full IAM role ARN to filter Glue jobs: ").strip()
+
+# Initialize AWS clients
+glue_client = boto3.client("glue",
+                           aws_access_key_id=aws_access_key,
+                           aws_secret_access_key=aws_secret_key,
+                           region_name=region)
+
+sts_client = boto3.client("sts",
+                          aws_access_key_id=aws_access_key,
+                          aws_secret_access_key=aws_secret_key,
+                          region_name=region)
+
+def get_account_id():
+    return sts_client.get_caller_identity()["Account"]
+
+def get_jobs_with_role(target_role):
+    jobs = []
+    paginator = glue_client.get_paginator("get_jobs")
+    for page in paginator.paginate():
+        for job in page["Jobs"]:
+            if job.get("Role") == target_role:
+                jobs.append(job["Name"])
+    return jobs
+
+def get_tags_for_job(job_name, account_id):
+    arn = f"arn:aws:glue:{region}:{account_id}:job/{job_name}"
+    response = glue_client.get_tags(ResourceArn=arn)
+    return response.get("Tags", {})
+
+# Main logic
+account_id = get_account_id()
+jobs = get_jobs_with_role(TARGET_IAM_ROLE)
+
+if not jobs:
+    print(f"No Glue jobs found using role: {TARGET_IAM_ROLE}")
+    exit()
+
+# Build tag key set
+all_tag_keys = set()
+job_tag_map = {}
+
+for job in jobs:
+    tags = get_tags_for_job(job, account_id)
+    job_tag_map[job] = tags
+    all_tag_keys.update(tags.keys())
+
+sorted_keys = sorted(all_tag_keys)
+header = ["JobName"] + [f"Tag_{key}" for key in sorted_keys]
+
+# Write CSV
+with open("glue_jobs_with_tags.csv", "w", newline="") as file:
+    writer = csv.writer(file)
+    writer.writerow(header)
+    for job, tags in job_tag_map.items():
+        row = [job] + [tags.get(k, "") for k in sorted_keys]
+        writer.writerow(row)
+
+print("✅ CSV file generated: glue_jobs_with_tags.csv")
