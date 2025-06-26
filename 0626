@@ -202,3 +202,141 @@ with open("glue_jobs_detailed.csv", "w", newline="") as file:
         writer.writerow(row)
 
 print("✅ CSV written: glue_jobs_detailed.csv")
+
+
+
+
+
+
+
+
+import boto3
+import os
+import csv
+import json
+from datetime import datetime
+from dotenv import load_dotenv
+
+# Load AWS credentials from .env
+load_dotenv()
+aws_access_key = os.getenv("AWS_ACCESS_KEY_ID")
+aws_secret_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+region = os.getenv("AWS_DEFAULT_REGION")
+
+# Load IAM roles from roles.json
+with open("roles.json") as f:
+    TARGET_IAM_ROLES = json.load(f).get("roles", [])
+
+# Initialize AWS clients
+glue_client = boto3.client("glue",
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    aws_session_token=aws_session_token,
+    region_name=region
+)
+sts_client = boto3.client("sts",
+    aws_access_key_id=aws_access_key,
+    aws_secret_access_key=aws_secret_key,
+    aws_session_token=aws_session_token,
+    region_name=region
+)
+
+def get_account_id():
+    return sts_client.get_caller_identity()["Account"]
+
+def get_jobs_for_role(role):
+    jobs = []
+    paginator = glue_client.get_paginator("get_jobs")
+    for page in paginator.paginate():
+        for job in page["Jobs"]:
+            if job.get("Role") == role:
+                jobs.append(job)
+    return jobs
+
+def get_tags_for_job(job_name, account_id):
+    arn = f"arn:aws:glue:{region}:{account_id}:job/{job_name}"
+    response = glue_client.get_tags(ResourceArn=arn)
+    return response.get("Tags", {})
+
+def get_last_run_info(job_name):
+    try:
+        response = glue_client.get_job_runs(JobName=job_name, MaxResults=1)
+        if response["JobRuns"]:
+            run = response["JobRuns"][0]
+            return {
+                "LastRunStatus": run.get("JobRunState", ""),
+                "LastRunStartedOn": run.get("StartedOn", "").strftime("%Y-%m-%d %H:%M:%S") if run.get("StartedOn") else "",
+                "LastRunCompletedOn": run.get("CompletedOn", "").strftime("%Y-%m-%d %H:%M:%S") if run.get("CompletedOn") else "",
+                "LastRunErrorMessage": run.get("ErrorMessage", "")
+            }
+    except Exception as e:
+        return {"LastRunStatus": "ERROR", "LastRunErrorMessage": str(e)}
+    return {
+        "LastRunStatus": "",
+        "LastRunStartedOn": "",
+        "LastRunCompletedOn": "",
+        "LastRunErrorMessage": ""
+    }
+
+def safe_filename(role_arn):
+    return role_arn.split("/")[-1].replace(":", "_").replace("/", "_")
+
+# Main
+account_id = get_account_id()
+
+for role in TARGET_IAM_ROLES:
+    jobs = get_jobs_for_role(role)
+    if not jobs:
+        print(f"❌ No Glue jobs found for role: {role}")
+        continue
+
+    # Gather all tag keys for this role
+    all_tag_keys = set()
+    for job in jobs:
+        tags = get_tags_for_job(job["Name"], account_id)
+        job["Tags"] = tags
+        all_tag_keys.update(tags.keys())
+
+    sorted_tag_keys = sorted(all_tag_keys)
+
+    # CSV headers
+    csv_headers = [
+        "Name", "Role", "Command_Name", "Command_ScriptLocation", "Command_PythonVersion",
+        "MaxCapacity", "NumberOfWorkers", "WorkerType", "GlueVersion", "Timeout",
+        "AutoScalingEnabled",
+        "LastRunStatus", "LastRunStartedOn", "LastRunCompletedOn", "LastRunErrorMessage"
+    ] + [f"Tag_{key}" for key in sorted_tag_keys]
+
+    # Write to per-role CSV
+    filename = f"glue_jobs_{safe_filename(role)}.csv"
+    with open(filename, "w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(csv_headers)
+
+        for job in jobs:
+            job_name = job.get("Name", "")
+            last_run = get_last_run_info(job_name)
+            tags = job.get("Tags", {})
+
+            row = [
+                job_name,
+                job.get("Role", ""),
+                job.get("Command", {}).get("Name", ""),
+                job.get("Command", {}).get("ScriptLocation", ""),
+                job.get("Command", {}).get("PythonVersion", ""),
+                job.get("MaxCapacity", ""),
+                job.get("NumberOfWorkers", ""),
+                job.get("WorkerType", ""),
+                job.get("GlueVersion", ""),
+                job.get("Timeout", ""),
+                "Yes" if job.get("ExecutionProperty", {}).get("EnableAutoScaling", False) else "No",
+                last_run.get("LastRunStatus", ""),
+                last_run.get("LastRunStartedOn", ""),
+                last_run.get("LastRunCompletedOn", ""),
+                last_run.get("LastRunErrorMessage", "")
+            ]
+            row += [tags.get(k, "") for k in sorted_tag_keys]
+            writer.writerow(row)
+
+    print(f"✅ CSV created for role: {role} → {filename}")
