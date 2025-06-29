@@ -1,0 +1,6 @@
+{
+  "query_name": {"S": "load_orders_from_s3"},
+  "sql": {
+    "S": "DROP TABLE IF EXISTS public.orders; CREATE TABLE public.orders (order_id INTEGER, customer_id INTEGER, order_date DATE, total_amount DECIMAL(10,2)); COPY public.orders FROM 's3://my-redshift-data/orders/' IAM_ROLE 'arn:aws:iam::123456789012:role/MyRedshiftRole' FORMAT AS CSV IGNOREHEADER 1 DELIMITER ',';"
+  }
+}
