@@ -1,38 +1,51 @@
 import boto3
 import os
 import time
+import json
 
-dynamodb = boto3.client('dynamodb')
+# Clients
 redshift_data = boto3.client('redshift-data')
+dynamodb = boto3.client('dynamodb')
 
-# ENV VARS
-DDB_TABLE = os.environ['DDB_TABLE']
-CLUSTER_ID = os.environ['CLUSTER_ID']
-DATABASE = os.environ['DATABASE']
-SECRET_ARN = os.environ['SECRET_ARN']
+# ENV Variables
+DDB_TABLE   = os.environ['DDB_TABLE']           # e.g., 'RedshiftSavedQueries'
+CLUSTER_ID  = os.environ['CLUSTER_ID']          # e.g., 'redshift-cluster-1'
+DATABASE    = os.environ['DATABASE']            # e.g., 'dev'
+SECRET_ARN  = os.environ['SECRET_ARN']          # ARN of secret in Secrets Manager
 
 def lambda_handler(event, context):
     try:
-        # Parse the S3 object key
-        s3_object_key = event['Records'][0]['s3']['object']['key']
-        filename = s3_object_key.split('/')[-1]
-        query_name = filename.replace('.csv', '')  # e.g., orders/load_orders_from_s3.csv → load_orders_from_s3
+        print("RAW EVENT >>>", json.dumps(event, indent=2))
 
-        print(f"Triggering query for: {query_name}")
+        # Parse S3 object key from event
+        records = event.get("Records", [])
+        if not records or "s3" not in records[0]:
+            raise ValueError("Missing or invalid 'Records' from S3 event")
+
+        s3_info = records[0]['s3']
+        s3_object_key = s3_info['object']['key']
+        filename = s3_object_key.split('/')[-1]              # Get file name
+        query_name = filename.replace('.csv', '').strip()    # Derive query name
+
+        print(f"Parsed query name: {query_name}")
     except Exception as e:
         return {"statusCode": 400, "body": f"Could not parse S3 event: {str(e)}"}
 
-    # Get SQL from DynamoDB
+    # Fetch SQL from DynamoDB
     try:
         response = dynamodb.get_item(
             TableName=DDB_TABLE,
             Key={"query_name": {"S": query_name}}
         )
-        sql = response['Item']['sql']['S']
-    except Exception as e:
-        return {"statusCode": 500, "body": f"Query not found: {str(e)}"}
+        if 'Item' not in response or 'sql' not in response['Item']:
+            return {"statusCode": 404, "body": f"Query not found for '{query_name}'"}
 
-    # Execute SQL
+        sql = response['Item']['sql']['S']
+        print(f"Retrieved SQL for {query_name}: {sql}")
+    except Exception as e:
+        return {"statusCode": 500, "body": f"DynamoDB error: {str(e)}"}
+
+    # Execute SQL using Redshift Data API with Secret
     try:
         exec_response = redshift_data.execute_statement(
             ClusterIdentifier=CLUSTER_ID,
@@ -44,6 +57,7 @@ def lambda_handler(event, context):
 
         statement_id = exec_response['Id']
 
+        # Wait for execution
         while True:
             desc = redshift_data.describe_statement(Id=statement_id)
             if desc['Status'] in ['FINISHED', 'FAILED', 'ABORTED']:
