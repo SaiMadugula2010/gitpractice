@@ -1,6 +1,4 @@
 {
-  "query_name": {"S": "load_orders_from_s3"},
-  "sql": {
-    "S": "DROP TABLE IF EXISTS public.orders; CREATE TABLE public.orders (order_id INTEGER, customer_id INTEGER, order_date DATE, total_amount DECIMAL(10,2)); COPY public.orders FROM 's3://my-redshift-data/orders/' IAM_ROLE 'arn:aws:iam::123456789012:role/MyRedshiftRole' FORMAT AS CSV IGNOREHEADER 1 DELIMITER ',';"
-  }
+  "query_name": "generic_copy",
+  "sql": "CREATE TABLE IF NOT EXISTS public.orders (order_id INTEGER, customer_id INTEGER, order_date DATE, total_amount DECIMAL(10,2)); CREATE TABLE IF NOT EXISTS public.orders_staging (order_id INTEGER, customer_id INTEGER, order_date DATE, total_amount DECIMAL(10,2)); COPY public.orders_staging FROM 's3://your-bucket/orders/' IAM_ROLE 'arn:aws:iam::123456789012:role/MyRedshiftRole' FORMAT AS CSV IGNOREHEADER 1 DELIMITER ','; BEGIN; DELETE FROM public.orders_staging WHERE order_id IS NULL; MERGE INTO public.orders AS target USING public.orders_staging AS source ON target.order_id = source.order_id WHEN MATCHED THEN UPDATE SET customer_id = source.customer_id, order_date = source.order_date, total_amount = source.total_amount WHEN NOT MATCHED THEN INSERT (order_id, customer_id, order_date, total_amount) VALUES (source.order_id, source.customer_id, source.order_date, source.total_amount); TRUNCATE TABLE public.orders_staging; END;"
 }
