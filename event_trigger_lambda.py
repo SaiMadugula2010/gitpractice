@@ -13,21 +13,14 @@ CLUSTER_ID  = os.environ['CLUSTER_ID']          # e.g., 'redshift-cluster-1'
 DATABASE    = os.environ['DATABASE']            # e.g., 'dev'
 SECRET_ARN  = os.environ['SECRET_ARN']          # ARN of secret in Secrets Manager
 
+
 def lambda_handler(event, context):
     try:
         print("RAW EVENT >>>", json.dumps(event, indent=2))
 
-        # Parse S3 object key from event
-        records = event.get("Records", [])
-        if not records or "s3" not in records[0]:
-            raise ValueError("Missing or invalid 'Records' from S3 event")
-
-        s3_info = records[0]['s3']
-        s3_object_key = s3_info['object']['key']
-        filename = s3_object_key.split('/')[-1]              # Get file name
-        query_name = filename.replace('.csv', '').strip()    # Derive query name
-
-        print(f"Parsed query name: {query_name}")
+        # Use a static query name regardless of file name
+        query_name = "generic_copy"
+        print(f"Using static query_name: {query_name}")
     except Exception as e:
         return {"statusCode": 400, "body": f"Could not parse S3 event: {str(e)}"}
 
