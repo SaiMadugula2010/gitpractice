@@ -1,0 +1,197 @@
+Incident Resolution: PDW SOX Report Application (SEV3 Incident)
+In Q1 2025, I was assigned a SEV3 incident reported by the DBA team’s supervisor, involving a failure in the "PDW SOX Report" application pipeline. The issue affected the generation of critical views in Athena, which in turn impacted compliance reporting.
+
+Root Cause Analysis & Resolution
+Conducted a comprehensive investigation into the AWS infrastructure supporting the PDW SOX Report application.
+
+Discovered that the recent upgrade of PostgreSQL on the Amazon RDS instance had a downstream effect on dependent services.
+
+Identified that the Amazon Kinesis Firehose, which triggered a Lambda function responsible for executing SQL queries to create Athena views, was automatically disabled during the upgrade process.
+
+Took corrective action by re-enabling and reconfiguring the Firehose delivery stream to trigger the Lambda function, restoring the data processing pipeline.
+
+Verified the successful execution of the Lambda and confirmed that the Athena views were regenerated as expected, resolving the incident.
+
+Impact
+Restored business-critical compliance reports with minimal downtime.
+
+Avoided escalation to a higher severity level through timely diagnosis and resolution.
+
+Documented the issue and mitigation steps for future platform upgrades to prevent recurrence.
+
+######
+
+Incident Resolution: Clean Energy Jobs Application – Network Failure (SEV3 Incident)
+In April 2025, I was assigned a SEV3 incident related to the “Clean Energy Jobs” application in the AWS production environment. The issue was reported following the implementation of AWS WAF (Web Application Firewall) for enhanced security.
+
+Root Cause Analysis & Resolution
+Investigated the network failures and application unresponsiveness affecting the Clean Energy Jobs Lambda-based backend services.
+
+Traced the root cause to the newly deployed AWS WAF rules, which inadvertently blocked traffic required by the application.
+
+Discovered that essential ingress and egress rules were missing from the Lambda function’s associated security group, resulting in failed communications with dependent services.
+
+Updated the security group rules to allow required traffic, both inbound and outbound, ensuring compliance with WAF policies while restoring functionality.
+
+Impact
+Resolved network communication failures within hours, minimizing disruption to the production environment.
+
+Ensured WAF policies remained intact, preserving the security posture while restoring application availability.
+
+Added documentation for future security group updates when deploying WAF in Lambda-based architectures.
+
+
+
+######
+
+Incident Management: Customer Data Asset Project – Glue Job Performance & SLA Risk (Multiple SEV3 Incidents)
+Over the course of multiple incidents in early 2025, I was assigned to investigate and remediate issues in the “Customer Data Asset” project, where AWS Glue jobs were experiencing prolonged runtimes, posing a risk to daily SLA commitments.
+
+Root Cause Analysis & Remediation
+Reviewed logs and metrics from AWS Glue jobs running in the production data lake environment.
+
+Identified that multiple jobs were running on subnets with exhausted IP pools, resulting in delayed job provisioning and performance bottlenecks.
+
+Correlated this with similar behavior across jobs using the same VPC subnets, confirming that IP exhaustion was the root cause.
+
+Collaborated with the application teams to assess job configurations and prioritize remediation.
+
+As a long-term solution, migrated the affected Glue jobs to new subnets that were previously provisioned as part of a VPC expansion initiative I led in 2024.
+
+Updated job configurations and tested end-to-end pipeline execution to ensure stability and performance.
+
+Impact
+Prevented potential SLA breaches for customer data delivery pipelines by addressing latency before it resulted in job failures.
+
+Reduced Glue job startup time and improved overall pipeline efficiency across the data platform.
+
+Demonstrated the long-term value of prior infrastructure investments (VPC subnet expansion), enabling a quick and effective resolution path.
+
+Created knowledge base entries for proactive monitoring of subnet utilization in Glue workloads.
+
+######
+
+Change Management: AWS Security Group Updates (36 Client-Requested Changes)
+Throughout the year, I handled 36 change requests submitted via ServiceNow, all related to AWS Security Group configurations for various client-facing applications.
+
+Scope of Work
+Reviewed, validated, and implemented changes to ingress and egress rules across multiple AWS environments to align with evolving application and compliance requirements.
+
+Acted as a liaison between application teams and the cloud security team, ensuring a balance between operational requirements and enterprise security policies.
+
+Coordinated with requestors to gather additional context when needed, verified destination/source IPs or CIDR blocks, and assessed potential impacts before making changes.
+
+Ensured timely and accurate deployment of each change request to avoid application downtime or connectivity disruptions.
+
+Impact
+Successfully implemented all 36 change requests within defined SLAs, improving operational agility and stakeholder satisfaction.
+
+Enhanced application-level security posture by maintaining strict control and auditing of access rules.
+
+Contributed to compliance and audit readiness by ensuring proper documentation, change approval, and traceability of each modification made through ServiceNow.
+
+
+######
+
+Change Management: Datalake Application Support (37 Requests – CEF, AMI, CDA, SPOT, AHP Projects)
+In addition to security-focused changes, I worked on 37 change requests spanning across key Datalake applications, including CEF, AMI, CDA, SPOT, and AHP. These requests involved a wide range of AWS services and required close collaboration with multiple teams to ensure successful and compliant deployments.
+
+Scope of Work
+Reviewed and executed change requests related to:
+
+AWS Glue Jobs – updates to job triggers, configurations, resource allocations, and scheduling.
+
+Step Functions – modifications to workflows to reflect application logic or dependency changes.
+
+Amazon Redshift – configuration updates, cluster parameter changes, and IAM role assignments.
+
+IAM Roles and Policies – creation and updates to roles, trust relationships, and scoped permissions based on least privilege principle.
+
+Security Groups – refined access control based on application changes and security team reviews.
+
+Collaborated with application owners, DevOps teams, and enterprise security to validate each request, assess impact, and align with best practices and compliance standards.
+
+Used ServiceNow for end-to-end lifecycle tracking: request intake, impact analysis, implementation, and closure.
+
+Impact
+Enabled timely deployment of enhancements and operational fixes across multiple critical Datalake applications.
+
+Ensured platform stability and security while supporting iterative development in a dynamic enterprise environment.
+
+Strengthened cross-functional coordination and contributed to an agile, responsive change management process.
+
+
+######
+
+Innovation & Collaboration: Internal Hackathon Participation – AI-Driven Compliance Data Solution for HR
+In mid-2025, I participated in a company-wide internal hackathon, where my team and I developed a secure, AI-enabled solution to help the HR department manage and store employee data for regulatory compliance — offering a significant cost advantage over external vendors.
+
+Problem Statement
+The HR team needed a compliant and scalable infrastructure to retain employee data. If outsourced, the solution would have cost the company approximately $3 million. We proposed an internal, cloud-native alternative projected to cost only ~$200,000, potentially saving $2.8 million.
+
+Proposed Solution
+We designed and demonstrated an integrated AWS-based solution with automation, analytics, and AI capabilities:
+
+Amazon S3 – to securely store structured and unstructured employee records
+
+Amazon Redshift – for efficient querying and reporting over large datasets
+
+AWS KMS – to meet encryption and compliance requirements
+
+IAM Roles and VPC – to enforce access control and network security
+
+Amazon Bedrock – to introduce generative AI features that assist HR personnel in:
+
+Automatically summarizing employee history for compliance audits
+
+Generating templated HR reports and correspondence
+
+Providing natural-language insights from stored data using foundation models
+
+Impact
+The solution was recognized as a cost-effective, scalable, and innovative in-house alternative to third-party platforms.
+
+Introduced AI-driven efficiency gains for HR workflows, reducing manual effort and enabling faster data retrieval and response.
+
+While not selected as the hackathon winner, the project demonstrated cross-functional collaboration, forward-thinking architecture, and strong business alignment.
+
+Personally, it was a proud moment — showcasing my contributions in cloud architecture, security, and practical AI integration.
+
+
+######
+Reflection: What Could Have Gone Better
+While the year has been productive and full of impactful contributions, one area of improvement I’ve observed relates to early collaboration between application teams and platform/cloud teams.
+
+In several projects and incidents, my team was brought in reactively, often during post-deployment performance issues or cost escalations. Proactive involvement in the early stages of AWS architecture planning and design could have significantly reduced these challenges.
+
+Opportunities for Improvement
+Early collaboration would enable our team to provide valuable input on AWS best practices, cost-optimized service selection, subnet planning, IAM role structuring, and automation potential.
+
+It would also help in preventing incidents caused by overlooked configurations, such as networking issues, IP exhaustion, or improper triggers.
+
+Lastly, it would foster a culture of shared ownership and accountability across application, infrastructure, and security domains.
+
+I believe fostering cross-functional design reviews and involving the cloud platform team during the architecture phase of AWS-based applications will lead to more robust, scalable, and cost-efficient solutions for the organization.
+
+
+#####
+
+Focus for the Remainder of 2025
+For the rest of the year, my primary focus will be on driving cost optimization efforts across AWS environments and enhancing my technical expertise through professional development.
+
+Key Areas of Focus:
+Cost Transparency & Reporting
+
+Build and automate AWS cost and usage reports tailored for individual application teams.
+
+Provide actionable insights to help teams understand cost trends, identify waste, and plan resource usage more effectively.
+
+Empower stakeholders to make informed decisions by aligning their architectures with budget expectations and optimization best practices.
+
+Certification & Skill Advancement
+
+Prepare for and complete the AWS Solutions Architect – Professional certification to deepen my understanding of large-scale cloud architectures, cost control mechanisms, and high-availability systems.
+
+Apply knowledge from certification study directly to architectural reviews, change management, and platform recommendations.
+
+Through these efforts, I aim to contribute to both technical excellence and financial accountability, helping the organization scale cloud usage responsibly while maintaining agility and control.
