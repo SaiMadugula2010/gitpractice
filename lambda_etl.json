@@ -1,0 +1,50 @@
+{
+  "Comment": "Run Redshift query, check, and then post-process",
+  "StartAt": "StartQuery",
+  "States": {
+    "StartQuery": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:start_query_lambda",
+      "Next": "Wait25Minutes"
+    },
+    "Wait25Minutes": {
+      "Type": "Wait",
+      "Seconds": 1500,
+      "Next": "CheckQueryStatus"
+    },
+    "CheckQueryStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:check_query_lambda",
+      "Next": "QueryComplete?"
+    },
+    "QueryComplete?": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.Status",
+          "StringEquals": "FINISHED",
+          "Next": "PostProcess"
+        },
+        {
+          "Variable": "$.Status",
+          "StringEquals": "FAILED",
+          "Next": "Fail"
+        }
+      ],
+      "Default": "WaitAgain"
+    },
+    "WaitAgain": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckQueryStatus"
+    },
+    "PostProcess": {
+      "Type": "Task",
+      "Resource": "arn:aws:lambda:REGION:ACCOUNT_ID:function:post_query_lambda",
+      "End": true
+    },
+    "Fail": {
+      "Type": "Fail"
+    }
+  }
+}
