@@ -1,0 +1,110 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SageMaker Notebook in VPC with S3, KMS, and ENI permissions
+
+Parameters:
+  NotebookInstanceName:
+    Type: String
+    Default: MyNotebook
+    Description: Name of the SageMaker Notebook instance
+
+  InstanceType:
+    Type: String
+    Default: ml.t3.medium
+    AllowedValues:
+      - ml.t2.medium
+      - ml.t2.large
+      - ml.t3.medium
+      - ml.t3.large
+      - ml.m5.large
+    Description: SageMaker instance type
+
+  S3BucketName:
+    Type: String
+    Description: S3 bucket name for read access (no s3:// prefix)
+
+  KmsKeyArn:
+    Type: String
+    Description: ARN of the KMS key used for encryption
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the notebook instance will be deployed
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet ID with NAT access
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security Group for the notebook instance
+
+Resources:
+
+  SageMakerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${NotebookInstanceName}-ExecutionRole"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sagemaker.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3ReadAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${S3BucketName}"
+                  - !Sub "arn:aws:s3:::${S3BucketName}/*"
+        - PolicyName: KMSAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                  - kms:GenerateDataKey
+                Resource: !Ref KmsKeyArn
+        - PolicyName: ENIAccessPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:CreateNetworkInterfacePermission
+                Resource: "*"
+
+  NotebookInstance:
+    Type: AWS::SageMaker::NotebookInstance
+    Properties:
+      NotebookInstanceName: !Ref NotebookInstanceName
+      InstanceType: !Ref InstanceType
+      RoleArn: !GetAtt SageMakerExecutionRole.Arn
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroupId
+      KmsKeyId: !Ref KmsKeyArn
+      DirectInternetAccess: Disabled
+      Tags:
+        - Key: Project
+          Value: NotebookWithVpcAccess
+
+Outputs:
+  NotebookInstanceURL:
+    Description: URL to open the SageMaker notebook
+    Value: !Sub "https://console.aws.amazon.com/sagemaker/home?region=${AWS::Region}#/notebook-instances/openNotebook/${NotebookInstanceName}"
+
+  SageMakerExecutionRoleArn:
+    Description: IAM Role attached to the notebook
+    Value: !GetAtt SageMakerExecutionRole.Arn
