@@ -195,3 +195,52 @@ Prepare for and complete the AWS Solutions Architect – Professional certificat
 Apply knowledge from certification study directly to architectural reviews, change management, and platform recommendations.
 
 Through these efforts, I aim to contribute to both technical excellence and financial accountability, helping the organization scale cloud usage responsibly while maintaining agility and control.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The compressed files will be submitted to the CFTC via Secured File Transfer Protocol (SFTP).
+To load the staging table, a deployed service will use the SharedLibrary FIXML adapter to read the file, parse the data, and generate a data structure with column names. This data will be compared against the mapping tables, and then used to populate the staging tables on LPRDPRFSTG.
+
+
+Data will be processed using the ShareLibrary FIXML Adapter, as well as an SSIS package to move data from the staging tables to the datamart, and perform validations.
+
+
+The compressed files will be submitted to the CFTC via Secured File Transfer Protocol (SFTP).
+To load the staging table, a deployed service will use the SharedLibrary FIXML adapter to read the file, parse the data, and generate a data structure with column names. This data will be compared against the mapping tables, and then used to populate the staging tables on LPRDPRFSTG
+
+
+
+The ProductReferenceDef and ProductRatioDef tables will contain the most recent version of product records. When a new version of a record with an updated attribute is submitted in a file, the new record will be added to these tables, keeping the old record with the IsCurrent field set to false, and with the new record’s IsCurrent field set to True.
+The ProductReferenceDefHistory and ProductRatioDefHistory will contain all records submitted in the PRF Files, including duplicate record submissions. The “IsCurrent” value will still be maintained in these tables.
+Product records will use the Product Code and cftc_record_key hash key column to identify a product record that exists in the ProductReferenceDef table. The hash key value will be calculated when selecting the data from the ProductReferenceDef_STG table, and compared against the values present in the ProductReferenceDef table to determine if a product needs to be loaded to both the ProductReferenceDef and ProductReferenceDefHistory tables. All columns that are not added during the CFTC load process will be used to calculate the hash value.
+The RuleMaster stored procedure will execute each validation rule configured in the RuleSet table. The RuleOverride table can be used to activate or deactivate validation rules for a particular submitter. The RuleAudit Table is used to log instances of validation errors.
