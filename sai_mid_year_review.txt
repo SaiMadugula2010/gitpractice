@@ -244,3 +244,49 @@ The ProductReferenceDef and ProductRatioDef tables will contain the most recent 
 The ProductReferenceDefHistory and ProductRatioDefHistory will contain all records submitted in the PRF Files, including duplicate record submissions. The “IsCurrent” value will still be maintained in these tables.
 Product records will use the Product Code and cftc_record_key hash key column to identify a product record that exists in the ProductReferenceDef table. The hash key value will be calculated when selecting the data from the ProductReferenceDef_STG table, and compared against the values present in the ProductReferenceDef table to determine if a product needs to be loaded to both the ProductReferenceDef and ProductReferenceDefHistory tables. All columns that are not added during the CFTC load process will be used to calculate the hash value.
 The RuleMaster stored procedure will execute each validation rule configured in the RuleSet table. The RuleOverride table can be used to activate or deactivate validation rules for a particular submitter. The RuleAudit Table is used to log instances of validation errors.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+The compressed files are submitted to the CFTC via SFTP and loaded into staging tables using the SharedLibrary FIXML adapter, which parses the data and applies mapping rules. Data from the staging tables is then moved to the datamart through an SSIS package that also performs validations. The ProductReferenceDef and ProductRatioDef tables always hold the most recent product records, while older versions are retained with their IsCurrent flag set to false. The corresponding history tables (ProductReferenceDefHistory and ProductRatioDefHistory) store all submitted records, including duplicates, while still maintaining IsCurrent status. A RuleMaster stored procedure runs validation rules from the RuleSet, with overrides managed via the RuleOverride table, and errors tracked in the RuleAudit table.
