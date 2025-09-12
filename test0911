@@ -1,0 +1,361 @@
+-- Monthly transaction log for the option archive
+-- Re-create or ensure this table exists
+CREATE TABLE [dbo].[O1_OPTION_ARCHIVE_MONTHLY_TRANSACTION_LOG] (
+    [LogID] [int] IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    [ReportDate] [date] NOT NULL,
+    [ExecutionStart] [datetime] NOT NULL,
+    [ExecutionEnd] [datetime] NULL,
+    [Status] [varchar](50) NOT NULL,
+    [DuplicatesFound] [int] NULL,
+    [ErrorMessage] [varchar](max) NULL
+);
+GO
+
+-- Deletion log for the option archive with the single DELETED_AT column
+-- Re-create or ensure this table exists
+CREATE TABLE [dbo].[O1_OPTION_ARCHIVE_DELETION_LOG] (
+    -- Columns from O1_OPTION_ARCHIVE
+    [id] [int] NOT NULL,
+    [REPORTING_FIRM_ID] [int],
+    [ACCOUNT_CODE] [varchar](50),
+    [CONTRACT_MARKET_CODE] [varchar](50),
+    [FUTURES_EXPIRATION_DATE] [date],
+    [OPTION_CLASS_CODE] [varchar](50),
+    [EXPIRATION_ID_DATE] [date],
+    [PUT_CALL_INDICATOR] [varchar](10),
+    [STRIKE_PRICE] [decimal](18, 2),
+    [DELTA_FACTOR] [decimal](18, 2),
+    [REPORT_DATE] [date],
+    [LONG] [int],
+    [SHORT] [int],
+    [ACCOUNT_TYPE_CODE] [varchar](50),
+    [SPECIAL_ACCOUNT_NAME] [varchar](100),
+    [OWNER_ID] [varchar](50),
+    [TRADER_SUFFIX] [varchar](50),
+    [TRADER_NAME] [varchar](100),
+    [CLASSIFICATION_CODE] [varchar](50),
+    [COMMERCIAL_FLAG] [bit],
+    [COUNTRY_CODE] [varchar](50),
+    [STATE_CODE] [varchar](50),
+
+    -- Metadata column
+    [DELETED_AT] [datetime] DEFAULT GETDATE()
+);
+GO
+
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Remove_Duplicates_From_O1_OPTION_ARCHIVE_MONTHLY_BASIS]
+    @start_date date,
+    @end_date date
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    DECLARE
+        @current_start date,
+        @current_end date,
+        @log_id INT,
+        @duplicates_count INT;
+
+    -- Use the input parameters directly
+    IF @start_date IS NULL OR @end_date IS NULL
+        RETURN;
+
+    -- Adjust the start date to the first day of its month
+    SET @current_start = DATEADD(month, DATEDIFF(month, 0, @start_date), 0);
+    SET @current_end = EOMONTH(@current_start);
+
+    WHILE @current_start <= @end_date
+    BEGIN
+        BEGIN TRANSACTION;
+
+        SET @duplicates_count = 0;
+
+        -- Log the start of the monthly transaction
+        INSERT INTO [dbo].[O1_OPTION_ARCHIVE_MONTHLY_TRANSACTION_LOG] (
+            ReportDate, ExecutionStart, [Status]
+        )
+        VALUES (@current_start, SYSDATETIME(), 'In Progress');
+
+        SET @log_id = SCOPE_IDENTITY();
+
+        BEGIN TRY
+            -- Drop temporary table if it exists
+            IF OBJECT_ID('tempdb..#duplicates') IS NOT NULL
+                DROP TABLE #duplicates;
+
+            -- Step 1: Identify duplicates for the current month
+            SELECT id,
+                ROW_NUMBER() OVER(
+                    PARTITION BY
+                          [REPORTING_FIRM_ID]
+                          ,[ACCOUNT_CODE]
+                          ,[CONTRACT_MARKET_CODE]
+                          ,[FUTURES_EXPIRATION_DATE]
+                          ,[OPTION_CLASS_CODE]
+                          ,[EXPIRATION_ID_DATE]
+                          ,[PUT_CALL_INDICATOR]
+                          ,[STRIKE_PRICE]
+                          ,[DELTA_FACTOR]
+                          ,[REPORT_DATE]
+                          ,[LONG]
+                          ,[SHORT]
+                          ,[ACCOUNT_TYPE_CODE]
+                          ,[SPECIAL_ACCOUNT_NAME]
+                          ,[OWNER_ID]
+                          ,[TRADER_SUFFIX]
+                          ,[TRADER_NAME]
+                          ,[CLASSIFICATION_CODE]
+                          ,[COMMERCIAL_FLAG]
+                          ,[COUNTRY_CODE]
+                          ,[STATE_CODE]
+                    ORDER BY id DESC
+                ) AS rn
+            INTO #duplicates
+            FROM [ISS_DB].[dbo].[O1_OPTION_ARCHIVE] WITH (NOLOCK)
+            WHERE report_date BETWEEN @current_start AND @current_end;
+
+            -- Get the count of duplicates to be deleted
+            SELECT @duplicates_count = COUNT(*) FROM #duplicates WHERE rn > 1;
+
+            -- Step 2: Log duplicates if found
+            IF @duplicates_count > 0
+            BEGIN
+                INSERT INTO [dbo].[O1_OPTION_ARCHIVE_DELETION_LOG] (
+                    id, REPORTING_FIRM_ID, ACCOUNT_CODE, CONTRACT_MARKET_CODE, FUTURES_EXPIRATION_DATE,
+                    OPTION_CLASS_CODE, EXPIRATION_ID_DATE, PUT_CALL_INDICATOR, STRIKE_PRICE, DELTA_FACTOR,
+                    REPORT_DATE, [LONG], [SHORT], ACCOUNT_TYPE_CODE, SPECIAL_ACCOUNT_NAME, OWNER_ID,
+                    TRADER_SUFFIX, TRADER_NAME, CLASSIFICATION_CODE, COMMERCIAL_FLAG, COUNTRY_CODE, STATE_CODE
+                )
+                SELECT
+                    t.id, t.REPORTING_FIRM_ID, t.ACCOUNT_CODE, t.CONTRACT_MARKET_CODE, t.FUTURES_EXPIRATION_DATE,
+                    t.OPTION_CLASS_CODE, t.EXPIRATION_ID_DATE, t.PUT_CALL_INDICATOR, t.STRIKE_PRICE, t.DELTA_FACTOR,
+                    t.REPORT_DATE, t.[LONG], t.[SHORT], t.ACCOUNT_TYPE_CODE, t.SPECIAL_ACCOUNT_NAME, t.OWNER_ID,
+                    t.TRADER_SUFFIX, t.TRADER_NAME, t.CLASSIFICATION_CODE, t.COMMERCIAL_FLAG, t.COUNTRY_CODE, t.STATE_CODE
+                FROM #duplicates AS d
+                JOIN [ISS_DB].[dbo].[O1_OPTION_ARCHIVE] AS t WITH (NOLOCK)
+                    ON d.id = t.id
+                WHERE d.rn > 1;
+            END
+
+            -- Step 3: Delete duplicates
+            DELETE FROM [ISS_DB].[dbo].[O1_OPTION_ARCHIVE]
+            WHERE id IN (
+                SELECT id FROM #duplicates WHERE rn > 1
+            );
+
+            -- If all steps succeeded, commit the transaction for the current month
+            COMMIT TRANSACTION;
+
+            -- Log the successful completion
+            UPDATE [dbo].[O1_OPTION_ARCHIVE_MONTHLY_TRANSACTION_LOG]
+            SET
+                ExecutionEnd = SYSDATETIME(),
+                [Status] = 'Success',
+                DuplicatesFound = @duplicates_count
+            WHERE LogID = @log_id;
+
+        END TRY
+        BEGIN CATCH
+            -- If an error occurred, roll back the transaction
+            IF @@TRANCOUNT > 0
+                ROLLBACK TRANSACTION;
+
+            -- Log the failed transaction
+            UPDATE [dbo].[O1_OPTION_ARCHIVE_MONTHLY_TRANSACTION_LOG]
+            SET
+                ExecutionEnd = SYSDATETIME(),
+                [Status] = 'Failed',
+                ErrorMessage = ERROR_MESSAGE()
+            WHERE LogID = @log_id;
+
+            -- Re-throw the error
+            THROW;
+        END CATCH
+
+        -- Move to the next month
+        SET @current_start = DATEADD(month, 1, @current_start);
+        SET @current_end = EOMONTH(@current_start);
+    END
+END;
+GO
+
+
+EXEC [dbo].[sp_Remove_Duplicates_From_O1_OPTION_ARCHIVE_MONTHLY_BASIS]
+    @start_date = '2024-01-01'
+    @end_date = '2024-12-31'
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---- deletion log table -----
+CREATE TABLE [ISS_DB].[dbo].[O1_FUTURE_ARCHIVE_DELETION_LOG] (
+    [ID] INT NOT NULL,
+    [REPORTING_FIRM_ID] VARCHAR(50),
+    [ACCOUNT_CODE] VARCHAR(50),
+    [CONTRACT_MARKET_CODE] VARCHAR(50),
+    [FUTURES_EXPIRATION_DATE] DATE,
+    [REPORT_DATE] DATE,
+    [LONG] FLOAT,
+    [SHORT] FLOAT,
+    [ACCOUNT_TYPE_CODE] VARCHAR(10),
+    [SPECIAL_ACCOUNT_NAME] VARCHAR(255),
+    [OWNER_ID] VARCHAR(50),
+    [TRADER_SUFFIX] VARCHAR(10),
+    [TRADER_NAME] VARCHAR(255),
+    [CLASSIFICATION_CODE] VARCHAR(10),
+    [COMMERCIAL_FLAG] CHAR(1),
+    [COUNTRY_CODE] VARCHAR(10),
+    [STATE_CODE] VARCHAR(10),
+    [NOTICES_ISSUED] INT,
+    [NOTICES_STOPPED] INT,
+    [XFCS_BOUGHT] INT,
+    [XFCS_SOLD] INT,
+    [DELETED_AT] DATETIME DEFAULT GETDATE()
+);
+
+
+--- creting transaction table
+
+CREATE TABLE [dbo].[O1_FUTURE_ARCHIVE_DAILY_TRANSACTION_LOG] (
+    [LogID] INT IDENTITY(1,1) PRIMARY KEY,
+    [ReportDate] DATE NOT NULL,
+    [ExecutionStart] DATETIME2 NOT NULL,
+    [ExecutionEnd] DATETIME2,
+    [Status] NVARCHAR(50) NOT NULL, 
+    [DuplicatesFound] INT,
+    [ErrorMessage] NVARCHAR(MAX)
+);
+
+
+
+
+---- sp for handling duplicates ----- 
+CREATE PROCEDURE [dbo].[sp_Remove_Duplicates_From_O1_FUTURE_ARCHIVE_TRANSACTION_BASIS]
+    @start_date DATE,
+    @end_date DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE 
+        @current_day DATE,
+        @log_id INT,
+        @duplicates_count INT;
+
+    SET @current_day = @start_date;
+
+    WHILE @current_day <= @end_date
+    BEGIN
+        -- Beginning a transaction for each day's work
+        BEGIN TRANSACTION;
+
+        -- Resetting count for each day
+        SET @duplicates_count = 0;
+
+        -- Logging the start of the daily transaction
+        INSERT INTO [dbo].[O1_FUTURE_ARCHIVE_DAILY_TRANSACTION_LOG] (
+            ReportDate, ExecutionStart, [Status]
+        )
+        VALUES (@current_day, SYSDATETIME(), 'In Progress');
+
+        SET @log_id = SCOPE_IDENTITY();
+
+        BEGIN TRY
+            -- Dropping temp table if it exists
+            IF OBJECT_ID('tempdb..#duplicates') IS NOT NULL DROP TABLE #duplicates;
+
+            -- Step 1: Identifying duplicates for the current day
+            SELECT *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY
+                        [REPORTING_FIRM_ID], [ACCOUNT_CODE], [CONTRACT_MARKET_CODE], 
+                        [FUTURES_EXPIRATION_DATE], [REPORT_DATE], [LONG], [SHORT], 
+                        [ACCOUNT_TYPE_CODE], [SPECIAL_ACCOUNT_NAME], [OWNER_ID],
+                        [TRADER_SUFFIX], [TRADER_NAME], [CLASSIFICATION_CODE], 
+                        [COMMERCIAL_FLAG], [COUNTRY_CODE], [STATE_CODE], [NOTICES_ISSUED], 
+                        [NOTICES_STOPPED], [XFCS_BOUGHT], [XFCS_SOLD]
+                    ORDER BY id DESC
+                ) AS rn
+            INTO #duplicates
+            FROM [ISS_DB].[dbo].[O1_FUTURE_ARCHIVE]
+            WHERE report_date = @current_day;
+            
+            -- Getting the count of duplicates to be deleted
+            SELECT @duplicates_count = COUNT(*) FROM #duplicates WHERE rn > 1;
+
+            -- Step 2: Logging duplicates
+            INSERT INTO [ISS_DB].[dbo].[O1_FUTURE_ARCHIVE_DELETION_LOG] (
+                id, REPORTING_FIRM_ID, ACCOUNT_CODE, CONTRACT_MARKET_CODE, FUTURES_EXPIRATION_DATE,
+                REPORT_DATE, [LONG], [SHORT], ACCOUNT_TYPE_CODE, SPECIAL_ACCOUNT_NAME, OWNER_ID,
+                TRADER_SUFFIX, TRADER_NAME, CLASSIFICATION_CODE, COMMERCIAL_FLAG, COUNTRY_CODE,
+                STATE_CODE, NOTICES_ISSUED, NOTICES_STOPPED, XFCS_BOUGHT, XFCS_SOLD
+            )
+            SELECT 
+                id, REPORTING_FIRM_ID, ACCOUNT_CODE, CONTRACT_MARKET_CODE, FUTURES_EXPIRATION_DATE,
+                REPORT_DATE, [LONG], [SHORT], ACCOUNT_TYPE_CODE, SPECIAL_ACCOUNT_NAME, OWNER_ID,
+                TRADER_SUFFIX, TRADER_NAME, CLASSIFICATION_CODE, COMMERCIAL_FLAG, COUNTRY_CODE,
+                STATE_CODE, NOTICES_ISSUED, NOTICES_STOPPED, XFCS_BOUGHT, XFCS_SOLD
+            FROM #duplicates
+            WHERE rn > 1;
+
+            -- Step 3: Deleting duplicates
+            DELETE FROM [ISS_DB].[dbo].[O1_FUTURE_ARCHIVE]
+            WHERE id IN (
+                SELECT id FROM #duplicates WHERE rn > 1
+            );
+
+            -- If all steps succeeded, committing the transaction for the current day
+            COMMIT TRANSACTION;
+
+            -- Logging the successful completion
+            UPDATE [dbo].[O1_FUTURE_ARCHIVE_DAILY_TRANSACTION_LOG]
+            SET 
+                ExecutionEnd = SYSDATETIME(),
+                [Status] = 'Success',
+                DuplicatesFound = @duplicates_count
+            WHERE LogID = @log_id;
+
+        END TRY
+        BEGIN CATCH
+            -- If any error occurred, roll back the transaction for the current day
+            ROLLBACK TRANSACTION;
+            
+            -- Log the failed transaction
+            UPDATE [dbo].[O1_FUTURE_ARCHIVE_DAILY_TRANSACTION_LOG]
+            SET 
+                ExecutionEnd = SYSDATETIME(),
+                [Status] = 'Failed',
+                ErrorMessage = ERROR_MESSAGE()
+            WHERE LogID = @log_id;
+            
+            -- Re-throw the error to halt the procedure
+            THROW;
+        END CATCH
+
+        -- Move to the next day
+        SET @current_day = DATEADD(DAY, 1, @current_day);
+    END
+END;
+
+
+
+
+EXEC [dbo].[sp_Remove_Duplicates_From_O1_FUTURE_ARCHIVE_TRANSACTION_BASIS]
+    @start_date = '2024-01-01'
+    @end_date = '2024-12-31'
