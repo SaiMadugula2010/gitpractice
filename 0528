@@ -252,3 +252,164 @@ proc sql;
  from days; 
 quit; 
 %adddata(&runit);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import pyodbc
+import pandas as pd
+import datetime as dt
+from pathlib import Path
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# ---------------------------------------------------
+# 1. SQL Connection
+# ---------------------------------------------------
+def get_sql_connection():
+    conn = pyodbc.connect(
+        "Driver={SQL Server Native Client 11.0};"
+        "Server=LPRDDCODM;"
+        "Database=DCODM01DB;"
+        "Trusted_Connection=yes;"
+    )
+    return conn
+
+# ---------------------------------------------------
+# 2. Extract Daily Data (replicates %databyday)
+# ---------------------------------------------------
+def get_daily_data(report_date: str):
+    query = f"""
+    DECLARE @return_value int, @iErrorCode int;
+    EXEC @return_value = dbo.GetPart39AccountSummaryDataByDate
+        @fromDate = '{report_date}',
+        @toDate   = '{report_date}',
+        @iErrorCode = @iErrorCode OUTPUT;
+    """
+    conn = get_sql_connection()
+    df = pd.read_sql(query, conn)
+    conn.close()
+
+    # Business rules filtering
+    allowed_dcos = ['CME', 'ICC', 'ICEU', 'ICUS', 'LCHSA', 'EUX']
+    df = df[df['clearingorganizationid'].isin(allowed_dcos)]
+
+    # Example segment mapping
+    df['segment'] = df['marketsegment'].map({
+        'IRS': 'Swaps',
+        'CDS': 'Swaps',
+        'FuturesOptions': 'FO'
+    })
+
+    return df
+
+# ---------------------------------------------------
+# 3. Transformation (top5 logic)
+# ---------------------------------------------------
+def get_top5(df: pd.DataFrame, segment: str):
+    """Compute top 5 firms for FO, Swaps, Totals"""
+    sub = df[df['segment'] == segment]
+    grouped = sub.groupby(['reportingdate', 'firmname']).agg({'tm':'sum'}).reset_index()
+    grouped['rank'] = grouped.groupby('reportingdate')['tm'].rank(ascending=False, method='first')
+    top5 = grouped[grouped['rank'] <= 5]
+    return top5
+
+# ---------------------------------------------------
+# 4. Monthly aggregation
+# ---------------------------------------------------
+def process_month(dates: list):
+    all_graphs = []
+    for i, d in enumerate(dates, start=1):
+        df = get_daily_data(d.strftime("%Y-%m-%d"))
+
+        # Compute top5s
+        top5_fo = get_top5(df, 'FO')
+        top5_swaps = get_top5(df, 'Swaps')
+
+        # Example aggregation
+        totals = df.groupby(['reportingdate','segment','origin'])['tm'].sum().unstack(fill_value=0)
+        totals.reset_index(inplace=True)
+
+        all_graphs.append(totals)
+
+    final_df = pd.concat(all_graphs, ignore_index=True)
+    return final_df
+
+# ---------------------------------------------------
+# 5. Write Excel (replicates ODS EXCEL)
+# ---------------------------------------------------
+def write_excel(df: pd.DataFrame, outpath: Path, sheet_name="CFTC ClearedMargin Data"):
+    with pd.ExcelWriter(outpath, engine="xlsxwriter") as writer:
+        df.to_excel(writer, sheet_name=sheet_name, index=False)
+
+# ---------------------------------------------------
+# 6. Send Email
+# ---------------------------------------------------
+def send_email(subject, body, to_emails):
+    sender = "cmarquardt@cftc.gov"
+    msg = MIMEMultipart()
+    msg["From"] = sender
+    msg["To"] = ", ".join(to_emails)
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "html"))
+
+    with smtplib.SMTP("your_smtp_server", 25) as server:
+        server.sendmail(sender, to_emails, msg.as_string())
+
+# ---------------------------------------------------
+# 7. Driver
+# ---------------------------------------------------
+if __name__ == "__main__":
+    today = dt.date.today()
+    first_of_month = today.replace(day=1)
+
+    # Example: process previous month’s weekdays
+    start = first_of_month - dt.timedelta(days=1)
+    start = start.replace(day=1)
+    dates = pd.date_range(start=start, end=today, freq="B")  # business days
+
+    df_final = process_month(dates)
+
+    monthend = today.strftime("%b%Y")
+    out1 = Path(f"CFTC ClearedMarginReport Data_{monthend}.xlsx")
+    out2 = Path("CFTC ClearedMarginReport Data_Current.xlsx")
+
+    write_excel(df_final, out1)
+    write_excel(df_final, out2)
+
+    send_email(
+        subject="***Monthly Cleared Margin Data Updated***",
+        body=f"<p>Cleared Margin Data updated for {monthend}.</p>"
+             f"<p><a href='\\\\dcprdapsasm02\\CODE_DEV\\CFTC\\DCR\\MonthlyClearedMarginReport'>Use plotPDF and text to create report</a></p>",
+        to_emails=["cmarquardt@cftc.gov"]
+    )
