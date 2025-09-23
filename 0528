@@ -413,3 +413,223 @@ if __name__ == "__main__":
              f"<p><a href='\\\\dcprdapsasm02\\CODE_DEV\\CFTC\\DCR\\MonthlyClearedMarginReport'>Use plotPDF and text to create report</a></p>",
         to_emails=["cmarquardt@cftc.gov"]
     )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+METADATA-DRIVEN ETL DESIGN DOCUMENT
+===================================
+
+OVERVIEW
+========
+This document outlines the implementation of a dynamic column mapping solution using AWS Glue with Redshift control table for configuration-driven data transformation. The solution enables business users to modify ETL mappings without code changes by updating database configurations.
+
+ARCHITECTURE COMPONENTS
+======================
+
+Data Sources:
+- S3 Files: Source data files (CSV, Parquet, JSON)
+- Redshift Control Table: Column mapping metadata
+- Redshift Target Tables: Final destination tables
+
+AWS Services:
+- AWS Glue: ETL processing engine
+- Amazon Redshift: Data warehouse and metadata store
+- Amazon S3: Data lake storage
+
+DETAILED IMPLEMENTATION STEPS
+=============================
+
+Step 1: Create Redshift Control Table
+=====================================
+
+Begin by establishing the metadata foundation in your Redshift cluster. Connect to your Redshift cluster using your preferred SQL client and create a dedicated schema for ETL metadata if one doesn't exist. The control table will serve as the central repository for all column mapping configurations.
+
+Create the table with the following structure: table_name to identify which target table the mapping applies to, source_column for the original column name from your S3 files, target_column for the destination column name in Redshift, source_data_type and target_data_type to handle data type conversions, transformation_rule for any custom logic like date formatting or string manipulation, is_active as a boolean flag to enable/disable specific mappings without deletion, and created_date plus modified_date for audit tracking.
+
+Populate this table with your initial mappings by inserting rows that define how each source column should map to target columns. Include any necessary data type conversions and transformation rules. This table becomes your single source of truth for all ETL mapping logic.
+
+Step 2: Configure AWS Glue Connections
+=====================================
+
+Navigate to the AWS Glue console and create two essential connections. First, establish a Redshift connection by providing your cluster endpoint, database name, username, and password. Ensure the connection is configured to use the same VPC and security groups as your Redshift cluster. Test this connection to verify Glue can successfully communicate with Redshift.
+
+Second, create an S3 connection if your S3 buckets are in a VPC, or configure IAM roles if using public S3 access. The connection should have read access to your source data buckets and write access to any temporary staging areas Glue might need.
+
+Verify both connections work by running the built-in connection tests in the Glue console. Address any networking issues such as security group rules, VPC routing, or IAM permissions before proceeding.
+
+Step 3: Set Up IAM Roles and Permissions
+========================================
+
+Create a comprehensive IAM role for your Glue job that includes the AWSGlueServiceRole managed policy as a baseline. Add custom policies that grant specific permissions to read from your S3 buckets, connect to your Redshift cluster, and write to CloudWatch logs.
+
+The role needs S3 permissions for GetObject and ListBucket on source buckets, PutObject on temporary staging buckets, Redshift permissions for database connections and query execution, and CloudWatch permissions for logging and monitoring.
+
+Attach this role to your Glue job and ensure it has the necessary trust relationships to allow the Glue service to assume it during job execution.
+
+Step 4: Develop the Glue Job Logic
+==================================
+
+Create a new Glue job using the Spark engine and Python as the scripting language. The job should start by establishing connections to both Redshift and S3 using the connections you created earlier.
+
+Implement the core logic to first read the control table from Redshift at job startup. This query should filter for active mappings and the specific table you're processing. Parse these results into a data structure that your transformation logic can use.
+
+Next, read your source data from S3 using Glue's dynamic frame capabilities. Apply the column mappings dynamically by iterating through your control table results and building transformation rules on the fly. Handle data type conversions, column renaming, and any custom transformation logic defined in your control table.
+
+Finally, write the transformed data to your target Redshift table using Glue's built-in Redshift connector, which handles the COPY command and temporary S3 staging automatically.
+
+Step 5: Implement Error Handling and Validation
+===============================================
+
+Add comprehensive error handling throughout your Glue job to manage various failure scenarios. Validate that all required mappings exist in the control table before processing begins. Check that source columns referenced in the control table actually exist in your S3 data.
+
+Implement data quality checks such as null value validation, data type compatibility verification, and range checks for numeric fields. Log detailed error messages to CloudWatch that include the specific record, column, and transformation that failed.
+
+Create a mechanism to handle partial failures where some records succeed while others fail. Consider writing failed records to a separate S3 location for manual review and reprocessing.
+
+Step 6: Configure Job Scheduling and Monitoring
+===============================================
+
+Set up automated job execution using AWS Glue triggers or Amazon EventBridge. For file-based triggers, configure S3 event notifications to automatically start the Glue job when new files arrive in your source bucket.
+
+Establish comprehensive monitoring using CloudWatch metrics and alarms. Monitor job success/failure rates, execution duration, and data volume processed. Set up SNS notifications for job failures or performance degradation.
+
+Create custom CloudWatch dashboards that provide visibility into your ETL pipeline performance, including job execution history, error rates, and data processing volumes over time.
+
+Step 7: Establish Mapping Management Procedures
+==============================================
+
+Document the process for business users to update column mappings through SQL commands. Create standardized procedures for adding new mappings, modifying existing ones, and deactivating obsolete mappings without deleting historical records.
+
+Implement a change approval workflow where mapping changes require review before activation. Consider using database triggers or stored procedures to automatically log all changes to the control table with timestamps and user information.
+
+Provide training materials and documentation for business users who will manage these mappings, including common SQL examples and troubleshooting guides for typical mapping scenarios.
+
+Step 8: Testing and Performance Optimization
+============================================
+
+Conduct thorough testing with representative data samples that cover all your mapping scenarios. Test edge cases such as missing columns, data type mismatches, and null value handling.
+
+Perform load testing with production-sized datasets to identify performance bottlenecks. Optimize Glue job parameters such as worker count, worker type, and memory allocation based on your data volumes and processing requirements.
+
+Validate data accuracy by comparing source and target data samples, ensuring transformations are applied correctly and no data is lost or corrupted during the ETL process.
+
+Step 9: Documentation and Knowledge Transfer
+===========================================
+
+Create comprehensive documentation covering the entire solution architecture, including data flow diagrams, table schemas, and job configuration details. Document all custom transformation logic and business rules encoded in the control table.
+
+Provide operational runbooks for common maintenance tasks such as adding new data sources, modifying existing mappings, and troubleshooting job failures. Include step-by-step procedures for both technical and business users.
+
+Establish a knowledge transfer process to ensure multiple team members understand how to maintain and extend the solution as business requirements evolve.
+
+Step 10: Production Deployment and Ongoing Maintenance
+=====================================================
+
+Deploy the solution to production using a phased approach, starting with a subset of data sources to validate functionality before full rollout. Establish backup and recovery procedures for both the Glue job configurations and the control table data.
+
+Implement regular maintenance procedures including control table cleanup, job performance review, and capacity planning for growing data volumes. Schedule periodic reviews of mapping accuracy and business rule compliance.
+
+Create a feedback loop with business users to continuously improve the solution based on their experience managing mappings and any new requirements that emerge over time.
+
+BENEFITS
+========
+
+- Flexibility: Change mappings without code deployment
+- Reusability: Same job handles multiple file types/tables
+- Maintainability: Business users can manage mappings via SQL
+- Auditability: All mapping changes tracked in database
+- Scalability: Handles varying file structures dynamically
+
+KEY SUCCESS FACTORS
+===================
+
+- Proper error handling for invalid mappings
+- Performance optimization for large datasets
+- Clear documentation for mapping management
+- Robust testing procedures for mapping changes
+- Comprehensive monitoring and alerting
+- User training and support procedures
+
+CONCLUSION
+==========
+
+This metadata-driven ETL solution provides a flexible, maintainable approach to data transformation that empowers business users while maintaining technical rigor. The solution scales with organizational needs and adapts to changing requirements without extensive development cycles.
+
+SAMPLE CONTROL TABLE STRUCTURE
+==============================
+
+CREATE TABLE etl_metadata.column_mappings (
+    mapping_id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    table_name VARCHAR(100) NOT NULL,
+    source_column VARCHAR(100) NOT NULL,
+    target_column VARCHAR(100) NOT NULL,
+    source_data_type VARCHAR(50),
+    target_data_type VARCHAR(50),
+    transformation_rule VARCHAR(500),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_date TIMESTAMP DEFAULT GETDATE(),
+    modified_date TIMESTAMP DEFAULT GETDATE()
+);
+
+SAMPLE MAPPING ENTRIES
+=====================
+
+INSERT INTO etl_metadata.column_mappings VALUES
+('customer_data', 'cust_id', 'customer_id', 'varchar', 'varchar', NULL, TRUE),
+('customer_data', 'cust_name', 'customer_name', 'varchar', 'varchar', 'UPPER(source_column)', TRUE),
+('customer_data', 'birth_dt', 'birth_date', 'varchar', 'date', 'TO_DATE(source_column, ''YYYY-MM-DD'')', TRUE);
